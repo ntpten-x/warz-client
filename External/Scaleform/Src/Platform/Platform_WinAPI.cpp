@@ -262,6 +262,8 @@ public:
 
     virtual bool    IsMultitouchSupported() const { return MultitouchSupported; }
 
+    virtual void    ProcessUrl(const String& url);
+
 protected:
     virtual void    updateConfig();
 
@@ -350,7 +352,7 @@ bool AppImpl::setupWindow(const String& title, const ViewConfig& config)
 
     // Load GFxPlayer icon
     HICON hGFxIcon = (HICON)LoadImage(hInstance, MAKEINTRESOURCE(IDI_GFXPLAYER),
-                                      IMAGE_ICON, 0, 0, LR_LOADTRANSPARENT | LR_VGACOLOR);
+                                      IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_LOADTRANSPARENT | LR_VGACOLOR);
 
     // Initialize the window class structure
     ::WNDCLASSEX wc = { sizeof(WNDCLASSEX), 
@@ -410,6 +412,14 @@ bool AppImpl::setupWindow(const String& title, const ViewConfig& config)
     {
         failSetupWindow("Unable to create window");
         return false;
+    }
+
+    // Set the console window (if there is one) to our custom icon as well.
+    HWND consoleWindow = ::GetConsoleWindow();
+    if (consoleWindow != INVALID_HANDLE_VALUE)
+    {
+        SendMessage(consoleWindow, WM_SETICON, ICON_SMALL, (LPARAM)hGFxIcon);
+        SendMessage(consoleWindow, WM_SETICON, ICON_BIG, (LPARAM)hGFxIcon);
     }
 
 #if (WINVER >= 0x0601) && defined(GFX_MULTITOUCH_SUPPORT_ENABLE)
@@ -581,6 +591,11 @@ void AppImpl::InitArgDescriptions(Args* args)
         {"ndp",     "NoDebugPopups",  Args::Flag,           "", "Disable Windows debug popups"},
         {"dump",    "Minidump",       Args::StringOption,   "", "Creates a minidump when unhandled exceptions occur (implies -ndp)."},
         {"sbuf",    "StaticBuffers",  Args::Flag,           "", "Uses static vertex/index buffers, instead of dynamic ones."},
+        {"sm20",    "ShaderModel20",  Args::Flag,           "", "Forces the use of shader model 2.0 shaders (D3D9)"},
+#if defined(FXPLAYER_RENDER_OPENGL)
+        {"gl20",    "OpenGL20",       Args::Flag,           "", "Use a legacy GL 2.x context instead of GL 3.x" },
+        {"gldbg",   "GLDebug",        Args::Flag,           "", "Enable GL debug messages via GL_ARB_debug_output." },
+#endif
         {"",        "",               Args::ArgEnd,         "", ""}
     };
     args->AddDesriptions(options);
@@ -591,6 +606,14 @@ void AppImpl::ApplyViewConfigArgs(ViewConfig* config, const Args& args)
     AppImplBase::ApplyViewConfigArgs(config, args);
     if (args.GetBool("StaticBuffers"))
         config->ViewFlags |= View_StaticBuffers;
+#if defined(FXPLAYER_RENDER_OPENGL)
+    if (args.GetBool("OpenGL20"))
+        config->ViewFlags |= View_GL20;
+    if (args.GetBool("GLDebug"))
+        config->ViewFlags |= View_DebugMessages;
+#endif
+    if (args.GetBool("ShaderModel20"))
+        config->ViewFlags |= View_ShaderModel20;
 }
 
 void AppImpl::SetWindowTitle(const String& title)
@@ -633,6 +656,17 @@ LRESULT CALLBACK AppImpl::appWindowProc(HWND hwnd, UINT iMsg, WPARAM wParam, LPA
     // use UPInt to quiet /Wp64 warning
     if ((papp=((AppImpl*)(UPInt)GetWindowLongPtr(hwnd,0)))==0)
     {
+        // It is possible that WM_GETMINMAXINFO arrives before WM_NCCREATE. If autotesting, having restrictions on the 
+        // size of the window can be a problem for agents with low resolutions, because of desktop window clamping rules.
+        // In this case, any window that gets created does not get a maximum size.
+        if (iMsg == WM_GETMINMAXINFO)
+        {
+            LPMINMAXINFO pmmi = (LPMINMAXINFO) lParam;
+            pmmi->ptMaxSize.x = pmmi->ptMaxSize.y = 65535;
+            pmmi->ptMaxTrackSize.x = pmmi->ptMaxTrackSize.y =65535;
+            return 0;
+        }
+
         return DefWindowProc(hwnd,iMsg,wParam,lParam);
     }
     // Call member
@@ -814,6 +848,11 @@ void AppImpl::processChangeCBChain(WPARAM wParam, LPARAM lParam)
         SendMessage(hWndNextViewer, WM_CHANGECBCHAIN, wParam, lParam); 
 }
 
+
+void    AppImpl::ProcessUrl(const String& url)
+{
+    ShellExecute(NULL, "open", url.ToCStr(), NULL, NULL, SW_SHOWNORMAL);
+}
 
 LRESULT AppImpl::MemberWndProc(UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -1001,7 +1040,18 @@ LRESULT AppImpl::MemberWndProc(UINT message, WPARAM wParam, LPARAM lParam)
                 pmmi->ptMinTrackSize.y = Config.MinSize.Height; // Height
                 handled = true;
             }   
-            if (handled) return 0;
+
+            // If in autotesting, do not clamp the size of the window.
+            if (pApp->GetArgs().HasValue("AutoPlayback"))
+            {
+                LPMINMAXINFO pmmi = (LPMINMAXINFO) lParam;
+                pmmi->ptMaxSize.x = pmmi->ptMaxSize.y = 65535;
+                pmmi->ptMaxTrackSize.x = pmmi->ptMaxTrackSize.y =65535;
+                handled = true;
+            }
+
+            if (handled) 
+                return 0;
         }
         break;
 
@@ -1296,7 +1346,7 @@ LONG WINAPI WriteMinidumpUnhandledExceptionFilter( __in struct _EXCEPTION_POINTE
     // Now actually write the dump file.
     dumpFile = CreateFile(MinidumpFilename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0 );
     MINIDUMP_EXCEPTION_INFORMATION exception = { ::GetCurrentThreadId(), ExceptionInfo, TRUE };
-    MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), dumpFile, MiniDumpWithHandleData, &exception, 0, 0 );
+    MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), dumpFile, MiniDumpWithIndirectlyReferencedMemory, &exception, 0, 0 );
     CloseHandle(dumpFile);
     fprintf_s(stderr, "Encountered unhandled exception! Writing minidump to %s\n", MinidumpFilename);
     return EXCEPTION_CONTINUE_SEARCH;
@@ -1463,7 +1513,7 @@ int AppBase::AppMain(int argc, char* argv[])
     ApplyViewConfigArgs(&config, GetArgs());
     if (!OnInit(config))
     {
-        return -1;	// ERROR
+        return -2;	// ERROR
     }
 
     // Application / Player message loop.
@@ -1672,8 +1722,9 @@ int Platform_WinAPI_MainW(int argc, wchar_t **wargv)
     char **argv = (char**)malloc(argc * sizeof (char*));
     for (int i = 0; i < argc; i++)
     {
-        argv[i] = (char*)malloc( (Scaleform::UTF8Util::GetEncodeStringSize(wargv[i]) + 1) * sizeof(char) );
-        Scaleform::UTF8Util::EncodeString(argv[i], wargv[i]);
+        Scaleform::SPInt numChars = Scaleform::UTF8Util::GetEncodeStringSize(wargv[i]) + 1;
+        argv[i] = (char*)malloc( numChars * sizeof(char) );
+        Scaleform::UTF8Util::EncodeStringSafe(argv[i], numChars, wargv[i]);
     }
 
     int res = Platform_WinAPI_MainA(argc, argv);
@@ -1694,7 +1745,7 @@ int Platform_WinAPI_MainA(int argc, char** argv)
 
     Scaleform::Platform::AppBase::DestroyInstance(app);
     if (result == 0 && Scaleform::System::HasMemoryLeaks)
-        result = -1;
+        result = -255;
 
     return result;
 }

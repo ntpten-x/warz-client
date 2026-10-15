@@ -598,10 +598,8 @@ public:
 
     void                Value2ASValue(const GFx::Value& gfxVal, Value* pdestVal);
     void                ASValue2Value(Environment* penv, const Value& value, GFx::Value* pdestVal) const;    
-#ifdef GFX_AS_ENABLE_USERDATA
     bool                CreateObjectValue(GFx::Value* pvalue, GFx::Value::ObjectInterface* pobjifc, 
                                      void* pdata, bool isdobj);
-#endif
 
     // Take care of this frame's actions, by executing ActionList. 
     void                DoActions();
@@ -640,13 +638,13 @@ public:
     virtual void        AdvanceFrame(bool nextFrame);
 
     // forces garbage collection (if GC is enabled)
-    virtual void        ForceCollect();
+    virtual void        ForceCollect(unsigned);
     // forces emergency garbage collection (if GC is enabled). This method is called
     // when heap is overflown. 
     virtual void        ForceEmergencyCollect();
 
     virtual void        SuspendGC(bool) {}
-    virtual void        ScheduleGC() {}
+    virtual void        ScheduleGC(unsigned) {}
 
     // Generate button events (onRollOver, onPress, etc)
     virtual void        GenerateMouseEvents(unsigned mouseIndex);

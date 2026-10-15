@@ -51,7 +51,7 @@ public:
 class RTCommand
 {
 public:
-    enum { MaxCommandSize = 128 };
+    enum { MaxCommandSize = 256 };
 
     enum WaitType {
         NoWait,
@@ -105,7 +105,7 @@ public:
         RTCommand* cmd = (RTCommand*)data;
         Size = cmd->Size;
         SF_ASSERT(Size <= RTCommand::MaxCommandSize);
-        memcpy(Data, cmd, Size);
+        memcpy(Data, (void*)cmd, Size);
     }
 
     void    Execute(RTCommandQueue& data)

@@ -23,7 +23,7 @@ otherwise accompanies this software in either electronic or hard copy form.
 namespace Scaleform {
 // ***** GFxWStringBuffer Class
 
-// A class used to store a string buffer of wchar_t. This is used by GFxTranslator
+// A class used to store a string buffer of wchar_t. This is used by GFx::Translator
 // interface, or when a variable size Unicode character buffer is necessary.
 
 class WStringBuffer
@@ -87,7 +87,7 @@ public:
     void ResizeInternal(UPInt _size, bool flag = false);
 
     void SetString(const wchar_t* pstr, UPInt length = SF_MAX_UPINT);
-    void SetString(const char* putf8str, UPInt utf8Len = SF_MAX_UPINT);
+    void SetString(const char* putf8str, UPInt utf8Sz = SF_MAX_UPINT);
 
     void StripTrailingNewLines();
 };

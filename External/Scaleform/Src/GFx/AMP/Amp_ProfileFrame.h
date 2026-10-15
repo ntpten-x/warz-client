@@ -17,6 +17,9 @@ otherwise accompanies this software in either electronic or hard copy form.
 #ifndef GFX_AMP_PROFILE_FRAME
 #define GFX_AMP_PROFILE_FRAME
 
+#include "GFxConfig.h"
+#ifdef SF_ENABLE_STATS
+
 #include "Kernel/SF_RefCount.h"
 #include "Kernel/SF_String.h"
 #include "Kernel/SF_Hash.h"
@@ -292,6 +295,8 @@ public:
     UInt64  TimeStamp;
 
     UInt32  FramesPerSecond;
+    UInt32  ProfilingLevel;
+    bool    DetailedMemReport;
 
     // CPU graph
     UInt32  AdvanceTime;
@@ -310,9 +315,11 @@ public:
     UInt32  InvokeTime;
     UInt32  DisplayTime;
     UInt32      PresentTime;
-    UInt32      TesselationTime;
+    UInt32      FontThrashingTime;
     UInt32      GradientGenTime;
+    UInt32      FontMissTime;
     UInt32  UserTime;
+    UInt32  UserCalls;
 
     // Rendering graph
     UInt32  LineCount;
@@ -333,13 +340,16 @@ public:
     UInt32  FontMisses;
     UInt32  FontTotalArea;
     UInt32  FontUsedArea;
+    UInt32  FontOptRead;
 
     // Memory graph
     UInt32  TotalMemory;
     UInt32  ImageMemory;
     UInt32  ImageGraphicsMemory;
     UInt32  MovieDataMemory;
+    UInt32  FontMemory;
     UInt32  MovieViewMemory;
+    UInt32  AS3Memory;
     UInt32  MeshCacheMemory;
     UInt32  MeshCacheGraphicsMemory;
     UInt32  MeshCacheUnusedMemory;
@@ -404,6 +414,7 @@ public:
     float                   CurveToleranceStep;
     UInt64                  CurrentFileId;
     UInt32                  CurrentLineNumber;
+    UInt32                  Platform;
 
     ServerState();
     ServerState& operator=(const ServerState& rhs);
@@ -417,5 +428,7 @@ public:
 } // namespace AMP
 } // namespace GFx
 } // namespace Scaleform
+
+#endif
 
 #endif

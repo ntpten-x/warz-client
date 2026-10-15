@@ -34,7 +34,6 @@ class LinearInterpolator
 {
 public:
     //--------------------------------------------------------------------
-    LinearInterpolator() {}
     LinearInterpolator(int y1, int y2, int count) :
     Cnt(count),
         Lft((y2 - y1) / count),
@@ -537,6 +536,8 @@ enum ResizeImageType
     ResizeRgbToRgba,    // Add Alpha and form RGBA
     ResizeGray          // 8-bit gray scale
 };
+
+typedef ResizeImageType ImageRescaleType;
 
 
 void SF_STDCALL ResizeImageBox(UByte* pDst, 

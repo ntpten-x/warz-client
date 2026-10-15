@@ -35,6 +35,7 @@ class String;
 class StringLH;
 class StringDH;
 class StringBuffer;
+class StringDataPtr;
 
 
 // ***** String Class 
@@ -172,6 +173,7 @@ public:
     String(const char* data, UPInt buflen);
     String(const String& src);
     String(const StringBuffer& src);
+    String(const StringDataPtr src);
     String(const InitStruct& src, UPInt size);
     explicit String(const wchar_t* data);      
 
@@ -286,8 +288,8 @@ public:
     String  GetFilename() const;    // Returns filename, including extension.
     String  GetExtension() const;   // Returns extension with a dot.
 
-    void    StripProtocol();        // Strips front protocol, if any, from the string.
-    void    StripExtension();       // Strips off trailing extension.
+    String& StripProtocol();        // Strips front protocol, if any, from the string.
+    String& StripExtension();       // Strips off trailing extension.
     
 
     // Operators
@@ -712,6 +714,43 @@ public:
         return *this;
     }
 
+    // Create new object. Prefix of size "size".
+    StringDataPtr  GetPrefix(UPInt size) const
+    {
+        // Limit prefix size to the size of the string.
+        size = Alg::PMin(GetSize(), size);
+
+        return StringDataPtr(ToCStr(), size);
+    }
+    // Create new object. Suffix of size "size".
+    StringDataPtr  GetSuffix(UPInt size) const
+    {
+        // Limit suffix to the size of the string.
+        size = Alg::PMin(GetSize(), size);
+
+        return StringDataPtr(ToCStr() + GetSize() - size, size);
+    }
+
+    // Prefix of size "size".
+    StringDataPtr& Prefix(UPInt size)
+    {
+        // Limit prefix size to the size of the string.
+        Size = Alg::PMin(GetSize(), size);
+
+        return *this;
+    }
+    // Suffix of size "size".
+    StringDataPtr& Suffix(UPInt size)
+    {
+        // Limit suffix to the size of the string.
+        size = Alg::PMin(GetSize(), size);
+
+        pStr = ToCStr() + GetSize() - size;
+        Size = size;
+
+        return *this;
+    }
+
     static bool IsWhiteSpace(UInt32 c);
 
     StringDataPtr GetTruncateWhitespace() const;
@@ -735,9 +774,13 @@ public:
 
     bool operator==(const StringDataPtr& other) const 
     {
-        return (
-            (other.pStr == pStr && other.Size == Size) || 
-            (pStr && other.pStr && SFstrncmp(pStr, other.pStr, other.Size) == 0));
+        return (other.Size == Size &&
+            (other.pStr == pStr || 
+            (pStr && other.pStr && SFstrncmp(pStr, other.pStr, Size) == 0)));
+    }
+    bool operator!=(const StringDataPtr& other) const 
+    {
+        return !operator==(other);
     }
 
 public:

@@ -163,7 +163,7 @@ public:
 	~IMEManagerBase();
 
 
-	virtual UInt32 Init(Log* plog, FileOpener* fileOpener = NULL, const char* xmlFileName = NULL, bool bcheckIMEExists = true)
+	virtual UInt32 Init(Log* plog, FileOpenerBase* fileOpener = NULL, const char* xmlFileName = NULL, bool bcheckIMEExists = true)
 	{ 
 		SF_UNUSED3(fileOpener, xmlFileName, bcheckIMEExists); 
 		bCheckIMEExists = bcheckIMEExists;
@@ -211,7 +211,12 @@ public:
 		InteractiveObject* pnewFocusingItem, 
 		InteractiveObject* ptopMostItem)
 	{
-		return GetASIMEManager()->HandleFocus(pmovie, poldFocusedItem, pnewFocusingItem, ptopMostItem);
+		ASIMEManager* pasIMEManager = GetASIMEManager();
+		if (pasIMEManager)
+		{
+			return pasIMEManager->HandleFocus(pmovie, poldFocusedItem, pnewFocusingItem, ptopMostItem);
+		}
+		return pnewFocusingItem;
 	};
 
 	// Returns true, if text field is currently focused.

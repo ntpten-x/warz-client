@@ -22,6 +22,8 @@ otherwise accompanies this software in either electronic or hard copy form.
 #include "Render/Render_Matrix2x4.h"
 #include "Render/Render_Stats.h"
 #include "Render/Render_ThreadCommandQueue.h"
+#include "Render/Render_ResizeImage.h"
+#include "Render/Render_TextureCache.h"
 
 #include "Kernel/SF_RefCount.h"
 #include "Kernel/SF_AmpInterface.h"
@@ -35,6 +37,8 @@ class TextureManager;
 class MemoryBufferImage;
 class DepthStencilBuffer;
 class RenderTargetData;
+class TextureCache;
+struct ImageFillMode;
 
 // ImageTarget defines a target rendering platform for which this ImageFormat is intended,
 // it is stored as part of the format. ImageTarget_Any means that image format is compatible
@@ -46,9 +50,12 @@ enum ImageTarget
     ImageTarget_X360      = 0x2000,
     ImageTarget_PS3       = 0x3000,
     ImageTarget_Wii       = 0x4000,
-	ImageTarget_3DS       = 0x5000,
+    ImageTarget_3DS       = 0x5000,
     ImageTarget_PSVita    = 0x6000,
     ImageTarget_WiiU      = 0x7000,  
+    ImageTarget_Adreno    = 0x8000,
+    ImageTarget_DX11      = 0x9000,
+    ImageTarget_Orbis     = 0xA000,
 
     // Mask returning the 
     ImageTarget_Mask      = 0xF000
@@ -112,6 +119,11 @@ enum ImageFormat
     Image_DXT3          = 51, // DXT3 compatible (D3D10 -> BC2).
     Image_DXT5          = 52, // DXT5 compatible (D3D10 -> BC3).
 
+    Image_BC1           = Image_DXT1,   // Aliases
+    Image_BC2           = Image_DXT3,   
+    Image_BC3           = Image_DXT5,
+    Image_BC7,                // Compressed, D3D11 (+Durango)/GL/Orbis only.
+
     Image_PVRTC_RGB_4BPP,     // Compressed.
     Image_PVRTC_RGBA_4BPP,    // Compressed.
     Image_PVRTC_RGB_2BPP,     // Compressed.
@@ -119,6 +131,9 @@ enum ImageFormat
 
     Image_ETC1_RGB_4BPP,      // Compressed, compatible only with Android.
     Image_ETC1_RGBA_8BPP,     // Compressed.
+    Image_ETC2_RGB,
+    Image_ETC2_RGBA,
+    Image_ETC2_RGBA1,         // Punchthrough alpha
 
     Image_ATCIC,              // Compressed, compatible only with Android (RGB)
     Image_ATCICA,             // Compressed, compatible only with Android (RGB w/explicit A).
@@ -132,10 +147,16 @@ enum ImageFormat
     Image_P8            = 100,
     
     // Formats for video textures. Not usable for any other purpose.
+    Image_VideoFormat_Start = 200,
+
     // Image_Y8_U2_V2 is encoded with three separate data planes.
-    Image_Y8_U2_V2      = 200,
+    Image_Y8_U2_V2      = Image_VideoFormat_Start,
     // Image_Y8_U2_V2 is encoded with four separate data planes.
-    Image_Y8_U2_V2_A8   = 201,
+    Image_Y8_U2_V2_A8,
+    // Image_Y4_U2_V2 is encoded into one 32bit data plane.
+    Image_Y4_U2_V2,
+
+    Image_VideoFormat_End = Image_Y4_U2_V2,
 
     ImageFormat_Mask    = 0xFFF,
     
@@ -172,9 +193,14 @@ enum ImageFormat
     Image_PSVita_DXT3             = ImageTarget_PSVita | Image_DXT3            | ImageStorage_Swizzle,
     Image_PSVita_DXT5             = ImageTarget_PSVita | Image_DXT5            | ImageStorage_Swizzle,
 
-	Image_WiiU_DXT1				  = ImageTarget_WiiU   | Image_DXT1			   | ImageStorage_Swizzle,
-	Image_WiiU_DXT3				  = ImageTarget_WiiU   | Image_DXT3			   | ImageStorage_Swizzle,
-	Image_WiiU_DXT5				  = ImageTarget_WiiU   | Image_DXT5			   | ImageStorage_Swizzle,
+    Image_WiiU_DXT1               = ImageTarget_WiiU   | Image_DXT1            | ImageStorage_Swizzle,
+    Image_WiiU_DXT3               = ImageTarget_WiiU   | Image_DXT3            | ImageStorage_Swizzle,
+    Image_WiiU_DXT5               = ImageTarget_WiiU   | Image_DXT5            | ImageStorage_Swizzle,
+
+    Image_Orbis_BC1             = ImageTarget_Orbis    | Image_BC1            | ImageStorage_Tile,
+    Image_Orbis_BC2             = ImageTarget_Orbis    | Image_BC2            | ImageStorage_Tile,
+    Image_Orbis_BC3             = ImageTarget_Orbis    | Image_BC3            | ImageStorage_Tile,
+    Image_Orbis_BC7             = ImageTarget_Orbis    | Image_BC7            | ImageStorage_Tile,
 
     // The desired format can only be obtained through the Decode function;
     // it is not stored directly.
@@ -429,9 +455,9 @@ public:
 // future this may change, which would requre extra Image::Create functions.
 //
 // Image planes are numbered first by the order of data channels in ImageFormat, then
-// by mip-map level index. Image_ARBG_888, for example has only one channel thus the
+// by mip-map level index. Image_R8G8B8A8, for example, has only one channel, thus the
 // index of a plane and mipmap is the same. Image_Y8_U2_V2, however, has three data planes,
-// indexed as {Y = 0, U = 1, V = 2}. If such image also has mip-map levels, the U plane
+// indexed as {Y = 0, U = 1, V = 2}. If such an image also has mip-map levels, the U plane
 // of a second mipmap (first down from the top level), would have an index of 5.
 //
 // For efficiency, ImageData stores one ImagePlane directly as a data member, allocating
@@ -710,13 +736,40 @@ public:
     ~TextureManagerLocks() { }
 };
 
-// *** TextureFormat describes format of the texture and its caps.
-// Format includes allowed usage capabilities and ImageFormat from which 
-// texture is supposed to be initialized. Replacement structs for each backend exist.
-struct TextureFormat
-{
-};
+struct TextureFormat;
 
+// *** MappedTextureBase
+// MappedTexture object represents a Texture mapped into memory with Texture::Map() call;
+// it is also used internally during updates.
+// The key part of this class is the Data object, stored Locked texture level plains.
+class Texture;
+class MappedTextureBase : public NewOverrideBase<StatRender_TextureManager_Mem>
+{
+    friend class Texture;
+public:
+    MappedTextureBase()
+        : pTexture(0), StartMipLevel(false), LevelCount(0) { }
+    virtual ~MappedTextureBase()
+    {
+        SF_ASSERT(!IsMapped());
+    }
+
+    bool            Reserve()  { AtomicOps<int>::CompareAndSet_Sync(&LevelCount, 0, -1); return LevelCount == -1; }
+    bool            IsMapped() { return (LevelCount > 0); }
+    virtual bool    Map(Texture* ptexture, unsigned mipLevel, unsigned levelCount) = 0;
+    virtual void    Unmap(bool applyUpdate = true);
+
+    Texture*      pTexture;
+    // We support mapping sub-range of levels, in which case
+    // StartMipLevel may be non-zero.
+    unsigned      StartMipLevel;
+    int           LevelCount;
+    // Pointer data that can be copied to.
+    ImageData     Data;
+
+    enum { PlaneReserveSize = 4 };
+    ImagePlane    Planes[PlaneReserveSize];
+};
 
 // Texture is a hardware version of image that is typically allocated from a HAL-specific
 // renderer's TextureManager and is managed by the rendering thread. Before Image data
@@ -745,19 +798,40 @@ public:
         State_Dead  // Texture becomes Dead once Manager is destroyed.
     };
 
-    Texture(TextureManagerLocks* pmanagerLocks, const ImageSize& size, UByte mipLevels, UInt16 use, ImageBase* pimage) : 
+    // Bits stored in TextureFlags (some of these may only apply to certain platforms).
+    enum TextureFlagBits
+    {
+        TF_Rescale     = 0x01,
+        TF_SWMipGen    = 0x02,
+        TF_UserAlloc   = 0x04,
+        TF_NoRefCount  = 0x08,
+        TF_DoNotDelete = 0x10,
+    };
+
+    Texture(TextureManagerLocks* pmanagerLocks, const ImageSize& size, UByte mipLevels, UInt16 use, ImageBase* pimage, const TextureFormat* pformat) : 
         ListNode<Texture>(),
         pManagerLocks(pmanagerLocks), pImage(pimage), ImgSize(size), State(State_InitPending), 
-        MipLevels(mipLevels), TextureCount(1), Use(use), TextureFlags(0) { };
+        MipLevels(mipLevels), TextureCount(1), Use(use), TextureFlags(0), pMap(0), pFormat(pformat) { };
 
-    //virtual HAL*          GetRenderHAL() const = 0;
+    virtual ~Texture() { };
+
     TextureManager* GetTextureManager() const { return pManagerLocks ? pManagerLocks->pManager : 0; };
+
+    // Initialize is a platform-specific method, that will actually create the API specific texture object.
+    // It will also copy the contents of the Texture's Image into this newly created object. This also supports
+    // user created Texture objects, which expect to be provided the API specific objects.
+    virtual bool            Initialize() = 0;
+
+    // IsValid determines whether the Initialize call has already been made, and if it was successful.
+    virtual bool            IsValid() const = 0;
 
     // Return Image object associated with texture on initialization, if not null.
     // Although ImageBase is used on texture initialization, only Image objects are kept
     // and accessible through this function.
     virtual Image*          GetImage() const = 0;
     virtual ImageFormat     GetFormat() const = 0;
+    virtual ImageFormat     GetImageFormat() const;
+    virtual ImageSize       GetTextureSize(unsigned plane =0) const = 0;
     inline  ImageSize       GetSize() const              { return ImgSize; }
     inline  unsigned        GetMipmapCount() const       { return (Use & ImageUse_GenMipmaps) ? 1 : MipLevels; }
     inline  unsigned        GetPlaneCount() const;
@@ -798,6 +872,11 @@ public:
 
     // *** RenderThread-only functions
 
+    // Applies a texture to the texturing pipeline. The stageIndex indicates which stage the 
+    // texture should be applied to, its exact meaning is platform-specific. The fm parameter
+    // determines the texture modes that the texture should be applied with.
+    virtual void            ApplyTexture(unsigned stageIndex, const ImageFillMode& fm) = 0;
+
     // Maps the texture data planes into the process address space so they can be accessed
     // directly; should be called only from the rendering thread. Typically, the mapping
     // is done by the Update packet. On success, image plane data is stored into the provided
@@ -817,11 +896,11 @@ public:
     //    us unmapped). This is allowed for efficient support of multi-threaded rendering
     //    and DrawableImage implementation. Texture can NOT be used as a render target while
     //    it is mapped.    
-    virtual bool            Map(ImageData* pdata, unsigned mipLevel = 0, unsigned levelCount = 0) = 0;
-    virtual bool            Unmap() = 0;
-	SF_AMP_CODE(
-    	virtual bool        Copy(ImageData* pdata) { SF_UNUSED(pdata); return false; }
-	)
+    virtual bool            Map(ImageData* pdata, unsigned mipLevel = 0, unsigned levelCount = 0);
+    virtual bool            Unmap();
+    SF_AMP_CODE(
+        virtual bool        Copy(ImageData* pdata);
+    )
 
     // Synchronizes RenderTarget and Staging content.
     //  - allows mapped changes to be transferred to HW without explicit Unmap call
@@ -842,19 +921,19 @@ public:
     virtual bool            Update(const UpdateDesc* updates, unsigned count = 1,
                                    unsigned mipLevel = 0) = 0;        
     // Does a full image update by calling the associated Image::Decode.
-    virtual bool            Update() = 0;
+    virtual bool            Update();
 
-    SF_AMP_CODE(
-        virtual UPInt GetBytes(int* memRegion) const
-        {
-            if (memRegion)
-                *memRegion = 1;
-            return ImageData::GetMipLevelSize(GetFormat(), GetSize());
-        }
-    )
+    // Returns the size in bytes the underlying system uses to store the texture data.
+    virtual UPInt           GetBytes(int* memRegion) const;
 
 protected:
-    
+
+    // Determines whether an image needs to be converted in its Update step, and what type of rescaling
+    // needs to be performed. 
+    virtual void            computeUpdateConvertRescaleFlags( bool rescale, bool swMipGen, ImageFormat inputFormat, 
+                                                              ImageRescaleType &rescaleType, ImageFormat &rescaleBuffFromat, bool &convert ) = 0;
+    virtual void            uploadImage(ImageData*) { };
+
     Ptr<TextureManagerLocks> pManagerLocks; // Texture synchronization object.
 
 public:
@@ -865,7 +944,10 @@ public:
     UByte                    MipLevels;     // Number of mip levels in the texture.
     UByte                    TextureCount;  // Number of hardware textures this texture consists of (multiple with YUV[A] textures).
     UInt16                   Use;           // Image usage flags (see ImageUse).
-    UByte                    TextureFlags;  // Texture usage flags (see TextureFlagBits in derived Texture classes).
+    UByte                    TextureFlags;  // Texture usage flags (see TextureFlagBits in derived Texture classes).    
+    MappedTextureBase*       pMap;          // If texture is currently mapped, it is here.
+    const TextureFormat*     pFormat;       // The TextureFormat used by the texture (platform specific derived classes of TextureFormat exist).
+
 };
 
 
@@ -878,13 +960,17 @@ public:
 class DepthStencilSurface : public RefCountBase<DepthStencilSurface, StatRender_TextureManager_Mem>, public ListNode<DepthStencilSurface>
 {
 public:    
-    DepthStencilSurface(TextureManagerLocks* pmanagerLocks) : pManagerLocks(pmanagerLocks) { }
+    DepthStencilSurface(TextureManagerLocks* pmanagerLocks, const ImageSize& size) : 
+      pManagerLocks(pmanagerLocks), State(Texture::State_InitPending), Size(size) { }
 
     virtual TextureManager* GetTextureManager() const { return pManagerLocks ? pManagerLocks->pManager : 0; };
-    virtual ImageSize       GetSize() const = 0;
+    virtual ImageSize       GetSize() const { return Size; }
+    virtual bool            Initialize() = 0;
 
     // Texture synchronization object.
     Ptr<TextureManagerLocks> pManagerLocks;
+    Texture::CreateState     State;
+    ImageSize                Size;
 };
 
 
@@ -979,9 +1065,12 @@ class MemoryManager ;
 class TextureManager : public RefCountBase<TextureManager, StatRender_TextureManager_Mem>,
                        public ImageUpdateSync
 {
+    friend class Texture;
+
 public:
 
-    TextureManager();
+    TextureManager(ThreadId renderThreadId = 0, ThreadCommandQueue* commandQueue = 0, TextureCache* textureCache = 0);
+    virtual ~TextureManager();
 
     // Creates a texture.
     // Texture is destroyed by its Release() call.
@@ -1009,36 +1098,43 @@ public:
     { SF_UNUSED2(size, manager); return 0; }
 
 
-    // Reports whether textures can be created on the current thread.
-    // Normally this is only false if using a single-threaded renderer, and the
-    // platform requires that textures be created on the render thread.
-    virtual bool            CanCreateTextureCurrentThread() { return true; }
+    // Reports whether textures can be created on the current thread. Normally this is only false 
+    // if using a multi-threaded renderer, and the platform requires that textures be created on the 
+    // render thread (default implementation). If a platform does not have these restrictions, it could
+    // simply return true from this method.
+    virtual bool             CanCreateTextureCurrentThread() const { return RenderThreadId == 0 || GetCurrentThreadId() == RenderThreadId; }
 
     // Processes work queued up on other threads, including texture creation 
     // and image updates. This function should be called before each frame 
     // on the RenderThread (it is called by TextureManager::BeginFrame).
-    virtual void            ProcessQueues();
+    virtual void             ProcessQueues();
 
     // Should be called before each frame on RenderThread.
-    virtual void            BeginFrame( )   { ProcessQueues(); }
+    virtual void             BeginFrame();
+    virtual void             EndFrame();
 
     // Should be called before/after each scene on RenderThread.
-    virtual void            BeginScene()    { }
-    virtual void            EndScene()      { }
+    virtual void             BeginScene()    { }
+    virtual void             EndScene()      { }
 
     // *** ImageUpdateSync
-    virtual void            UpdateImage(Image* pimage);
-    virtual void            UpdateImage(ImageUpdate* pupdate);
+    virtual void             UpdateImage(Image* pimage);
+    virtual void             UpdateImage(ImageUpdate* pupdate);
 
     // Reports the desired format for DrawableImages. These textures must be mappable, and
     // thus this should report a format that is capable of being mapped for the given platform.
     // Valid return values are either Image_R8G8B8A8, or Image_B8G8R8A8.
-    virtual ImageFormat     GetDrawableImageFormat() const { return Image_R8G8B8A8; }
+    virtual ImageFormat      GetDrawableImageFormat() const { return Image_R8G8B8A8; }
 
-	virtual bool			IsDrawableImageFormat(ImageFormat format) const { return (format == Image_R8G8B8A8); }
+    // Determines whether the input format is an acceptable DrawableImage format for this texture manager.
+    virtual bool             IsDrawableImageFormat(ImageFormat format) const { return (format == Image_R8G8B8A8); }
 
-	virtual ImageSwizzler&	GetImageSwizzler() const;
+    // Returns the ImageSwizzler object compatible with this texture manager. This is used when the CPU accesses
+    // GPU textures, which may be tiled and/or swizzled in a platform specific manner.
+    virtual ImageSwizzler&   GetImageSwizzler() const;
 
+    // Returns the TextureCache for this texture manager (may be NULL).
+    TextureCache* GetTextureCache() const { return pTextureCache; }
 
 protected:
 
@@ -1053,20 +1149,48 @@ protected:
         ServiceCommand(TextureManager* manager) : pManager(manager) { }
         virtual void Execute() { pManager->ProcessQueues(); }
     };
-    ServiceCommand  ServiceCommandInstance;
     TextureManager* getThis() { return this; }
 
     void            processImageUpdates()       { ImageUpdates.ProcessUpdates(this); }
     virtual void    processTextureKillList()    { }
     virtual void    processInitTextures()       { }
 
-    virtual const TextureFormat* getTextureFormat(ImageFormat format) const = 0;
+    virtual const TextureFormat* getTextureFormat(ImageFormat format) const;
     const TextureFormat*         precreateTexture(ImageFormat format, unsigned use, ImageBase* pimage);
+    Render::Texture*             postCreateTexture(Texture* ptexture, unsigned use );
+    Render::DepthStencilSurface* postCreateDepthStencilSurface( Render::DepthStencilSurface* pdss );
 
-    virtual bool    isMappable(const TextureFormat* ptformat) = 0;
+    // Texture Memory-mapping support.
 
-    Ptr<TextureManagerLocks>  pLocks;           // Texture synchronization object.
-    ImageUpdateQueue          ImageUpdates;     // Queue of updates pending on image.
+    // Returns true if the platform format is 'scanline compatible' with the texture format.
+    // This means that either the layout is identical, or a simple swizzling of components.
+    // By default, assume that the platform uses only scanline compatible images.
+    virtual bool                isScanlineCompatible(const TextureFormat*) { return true; }   
+
+    virtual MappedTextureBase*  mapTexture(Texture* p, unsigned mipLevel, unsigned levelCount);
+    virtual MappedTextureBase*  mapTexture(Texture* p) { return mapTexture(p, 0, p->MipLevels); }
+    virtual void                unmapTexture(Texture *ptexture, bool applyUpdate = true);
+    virtual MappedTextureBase&  getDefaultMappedTexture() = 0;
+    virtual MappedTextureBase*  createMappedTexture() = 0;
+
+    typedef List<Render::Texture>  TextureList;
+    typedef List<Render::DepthStencilSurface> DepthStencilList;
+
+    ServiceCommand            ServiceCommandInstance;   // The command which will service the texture queues (used when the Advance thread blocks on texture creation).
+    ThreadId                  RenderThreadId;           // The ThreadId of the render thread.
+    ThreadCommandQueue*       pRTCommandQueue;          // Queue for adding rendering commands that can not be executed immediately.
+    Ptr<TextureCache>         pTextureCache;            // TextureCache object, which may be NULL. See Render::TextureCache for a description.
+
+    Ptr<TextureManagerLocks>  pLocks;                   // Texture synchronization object.
+    ImageUpdateQueue          ImageUpdates;             // Queue of updates pending on image.
+
+    // Texture format table, organized by supported HW features.
+    ArrayLH<TextureFormat*>   TextureFormats;
+
+    // Lists protected by TextureManagerLocks::TextureMutex.
+    TextureList               Textures;                 // 'Global' list of textures.
+    TextureList               TextureInitQueue;         // List of textures that are not initialized currently (not created on the render thread).
+    DepthStencilList          DepthStencilInitQueue;    // List of depth stencil surfaces that are not initialized currently (not created on the render thread).
 };
 
 // ***** Image
@@ -1210,7 +1334,7 @@ public:
     virtual void            SetMatrix(const Matrix2F& mat, MemoryHeap* heap = 0);
     virtual void            GetMatrix(Matrix2F* mat) const;
     virtual void            SetMatrixInverse(const Matrix2F& mat, MemoryHeap* heap = 0);
-    virtual void            GetMatrixInverse(Matrix2F* mat) const;
+    virtual bool            GetMatrixInverse(Matrix2F* mat) const;
 
     // Map and Unmap are only available if image has ImageUse_MapSimThread flag.
     // If Map is used user is still responsible for calling Update to notify render thread
@@ -1313,6 +1437,10 @@ public:
     }
 
     virtual MemoryBufferImage* GetAsMemoryImage() { return NULL; }
+
+    SF_AMP_CODE(
+        virtual UPInt   GetBytes(int* memRegion) const;
+    )
 };
 
 // A wrapper around an Image to enable image substitution.
@@ -1339,7 +1467,7 @@ public:
     virtual void        GetMatrix(Matrix2F* mat) const { pImage->GetMatrix(mat); }
     virtual void    SetMatrixInverse(const Matrix2F& mat, MemoryHeap* heap = 0) 
     { pImage->SetMatrixInverse(mat, heap); }
-    virtual void    GetMatrixInverse(Matrix2F* mat) const { pImage->GetMatrixInverse(mat); }
+    virtual bool    GetMatrixInverse(Matrix2F* mat) const { return pImage->GetMatrixInverse(mat); }
     virtual void    GetUVGenMatrix(Matrix2F* mat, TextureManager* manager) 
     { pImage->GetUVGenMatrix(mat, manager); }
     virtual void    GetUVNormMatrix(Matrix2F* mat, TextureManager* manager)
@@ -1382,12 +1510,6 @@ public:
         virtual UInt32  GetBaseImageId() const  { return pImage->GetBaseImageId(); }
     )
 };
-
-inline unsigned Texture::GetPlaneCount() const
-{
-    return ImageData::GetFormatPlaneCount(GetFormat()) * GetMipmapCount();
-}
-
 
 // ***** ImageSource
 
@@ -1489,6 +1611,7 @@ public:
     ~RawImage();
 
     void freeData();
+    bool hasData() const;
 
     // Override original Create (?)
     // Or no TextureManager? Base Create is hidden
@@ -1568,12 +1691,12 @@ public:
     { releaseTexture(); }
 
     virtual Image* GetAsImage() { return this; }
-	SF_AMP_CODE(
-	    virtual bool    Decode(ImageData* pdest, CopyScanlineFunc copyScanline = CopyScanlineDefault, void* arg = 0) const;
+    SF_AMP_CODE(
+        virtual bool    Decode(ImageData* pdest, CopyScanlineFunc copyScanline = CopyScanlineDefault, void* arg = 0) const;
         virtual UPInt   GetBytes(int* memRegion) const { if (memRegion) *memRegion = 0; return pTexture ?  pTexture->GetBytes(memRegion) : Image::GetBytes(memRegion); }
         virtual UInt32  GetImageId() const { return ImageId; }
         virtual UInt32  GetBaseImageId() const { return 0; }
-	)
+    )
 };
 
 
@@ -1601,6 +1724,9 @@ public:
     virtual ImageSize       GetSize() const                 { return pImage->GetSize(); }
     virtual unsigned        GetMipmapCount() const          { return pImage->GetMipmapCount(); }
     virtual ImageRect       GetRect() const                 { return SubRect; }
+
+    virtual bool            GetMatrixInverse(Matrix2F* mat) const;
+
     // Map and Unmap are not allowed for SubImage.
     virtual bool            Map(ImageData*, unsigned, unsigned)     { return false; }
     virtual bool            Unmap()                         { return false; }
@@ -1609,7 +1735,7 @@ public:
     { return pImage->Decode(pdest, csf, arg); }
     virtual Texture*        GetTexture(TextureManager* pm)  { return pImage->GetTexture(pm); }
     virtual void            TextureLost(TextureLossReason reason) { pImage->TextureLost(reason); }
-	Image*					GetBaseImage() { return pImage; }
+    Image*                  GetBaseImage() { return pImage; }
 
     virtual Image* GetAsImage() { return this; }
     SF_AMP_CODE(
@@ -1666,6 +1792,30 @@ struct ImageFillMode
     void       SetSampleMode(SampleMode sm) { Fill = (UByte)((Fill &~Sample_Mask) | sm); }
 };
 
+// *** TextureFormat describes format of the texture and its caps.
+// Format includes allowed usage capabilities and ImageFormat from which 
+// texture is supposed to be initialized. Replacement structs for each backend exist.
+struct TextureFormat : public NewOverrideBase<StatRender_TextureManager_Mem>
+{
+    virtual ~TextureFormat() { }
+
+    virtual ImageFormat             GetImageFormat() const = 0;
+    virtual Image::CopyScanlineFunc GetScanlineCopyFn() const = 0;
+    virtual Image::CopyScanlineFunc GetScanlineUncopyFn() const { return 0; };
+
+    unsigned                GetPlaneCount() const
+    { return ImageData::GetFormatPlaneCount(GetImageFormat()); }
+};
+
+inline unsigned Texture::GetPlaneCount() const
+{
+    return ImageData::GetFormatPlaneCount(GetFormat()) * GetMipmapCount();
+}
+
+inline ImageFormat Texture::GetImageFormat() const
+{ 
+    return pFormat ? pFormat->GetImageFormat() : Image_None; 
+}
 
 
 

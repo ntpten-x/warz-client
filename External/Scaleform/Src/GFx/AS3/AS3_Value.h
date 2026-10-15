@@ -24,6 +24,14 @@ otherwise accompanies this software in either electronic or hard copy form.
 #define SF_AS3_CLASS_AS_SLOT
 
 // #define SF_AS3_AOTC
+// This can be required by AOTC
+// #define SF_AS3_REFCOUNTED_TRAITS
+
+// #define SF_AS3_AOTC2
+
+#if defined(SF_AS3_AOTC2) && defined(SF_AS3_AOTC)
+    #undef SF_AS3_AOTC
+#endif
 
 #if defined(SF_AS3_AOTC)
     #define SF_AOTC_ARG(x) , x
@@ -31,6 +39,14 @@ otherwise accompanies this software in either electronic or hard copy form.
 #else
     #define SF_AOTC_ARG(x)
     #define SF_AOTC_CODE(x)
+#endif
+
+#if defined(SF_AS3_AOTC2)
+#define SF_AOTC2_ARG(x) , x
+#define SF_AOTC2_CODE(x) x
+#else
+#define SF_AOTC2_ARG(x)
+#define SF_AOTC2_CODE(x)
 #endif
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -48,18 +64,23 @@ class GASRefCountBase;
 class WeakProxy;
 class SNode;
 
+namespace Abc
+{
+    struct ConstValue;
+}
+
 namespace Instances
 {
     class Function;
     class FunctionBase;
     class ThunkFunction;
-    class Namespace;
 }
 
 namespace Instances { 
     namespace fl
     {
         class GlobalObject;
+        class Namespace;
     }
 }
 
@@ -103,7 +124,9 @@ public:
     }
     ~CheckResult()
     {
+#ifdef SF_BUILD_DEBUG
         SF_ASSERT(Checked);
+#endif
     }
 
 public:
@@ -170,29 +193,50 @@ struct ThunkInfo
 
     TThunkFunc Method;
 
-    const TypeInfo* ResultType;
+    const TypeInfo** ArgType;
 
     const char* Name;
 
-    //Abc::NamespaceKind NsKind;
     const char* NamespaceName;
 
-    TCodeType CodeType_:3; // One bit can be saved.
+    // 32 bits.
+    UPInt   NsKind:4;
+    UPInt   CodeType_:2;
 
-    unsigned MinArgNum_:3;
-    unsigned MaxArgNum_:10;
+    UPInt   MinArgNum_:3;
+    UPInt   MaxArgNum_:12;
+    UPInt   Ellipsis_:1;
+    UPInt   DefArgNum_:10;
 
+    const Abc::ConstValue* DefArgValue;
+
+    Abc::NamespaceKind GetNsKind() const
+    {
+        return static_cast<Abc::NamespaceKind>(NsKind);
+    }
     TCodeType GetCodeType() const
     {
-        return CodeType_;
+        return static_cast<TCodeType>(CodeType_);
     }
-    unsigned GetMinArgNum() const
+    UPInt GetMinArgNum() const
     {
         return MinArgNum_;
     }
-    unsigned GetMaxArgNum() const
+    UPInt GetMaxArgNum() const
     {
         return MaxArgNum_;
+    }
+    UPInt GetDefArgNum() const
+    {
+        return DefArgNum_;
+    }
+    bool HasEllipsis() const
+    {
+        return Ellipsis_ != 0;
+    }
+    const TypeInfo* GetResultType() const
+    {
+        return ArgType[0];
     }
 
     static void EmptyFunc(const ThunkInfo& ti, VM& vm, const Value& _this, Value& result, unsigned argc, const Value* argv);
@@ -200,8 +244,9 @@ struct ThunkInfo
 
 ///////////////////////////////////////////////////////////////////////////
 enum StrongRefType { StrongRefValue };
-class ValueStack;
+class VSBase;
 
+// Value has *Any* type.
 class Value
 {
 public:
@@ -225,7 +270,7 @@ public:
         kClassTraits,
 
         // Below are ref-counted tags.
-#ifdef SF_AS3_AOTC
+#if defined(SF_AS3_AOTC) || defined(SF_AS3_AOTC2)
         kSNodeIT, // SNode + InstanceTraits
         kSNodeCT, // SNode + kClassTraits
 #endif
@@ -270,11 +315,17 @@ public:
     }
 
     // Pick value from the stack and pop it.
-    Value(ValueStack& v);
+    Value(VSBase& v);
     Value(const Value& other, StrongRefType);
     
     SF_INLINE
     Value() : Flags(kUndefined)
+    {
+    }
+    SF_INLINE
+    Value(Abc::MiInd v, const Traits& tr)
+    : Flags(kMethodInd)
+    , value(v.Get(), tr)
     {
     }
     SF_INLINE
@@ -312,6 +363,20 @@ public:
     {
     }
     SF_INLINE
+    explicit Value(float v)
+    : Flags(kNumber)
+    , value(v)
+    {
+    }
+#ifdef SF_SAFE_DOUBLE
+    SF_INLINE
+    explicit Value(double v)
+    : Flags(kNumber)
+    , value(v)
+    {
+    }
+#endif
+    SF_INLINE
     explicit Value(Number v)
     : Flags(kNumber)
     , value(v)
@@ -338,7 +403,7 @@ public:
     explicit Value(Class* v);
     explicit Value(Instances::Function* v);
     explicit Value(Instances::ThunkFunction* v);
-    explicit Value(Instances::Namespace* v);
+    explicit Value(Instances::fl::Namespace* v);
 
     SF_INLINE
     Value(Object* p, const ThunkInfo& f) 
@@ -370,6 +435,9 @@ public:
         : Flags(kInstanceTraits)
         , value(tr)
     {
+#ifdef SF_AS3_REFCOUNTED_TRAITS
+        AddRefTraits();
+#endif
         SetTraceNullType(isNull);
         SetWith(false);
     }
@@ -378,11 +446,15 @@ public:
         : Flags(kClassTraits)
         , value(tr)
     {
+#ifdef SF_AS3_REFCOUNTED_TRAITS
+        AddRefTraits();
+#endif
         SetTraceNullType(isNull);
         SetWith(false);
     }
 
-#ifdef SF_AS3_AOTC
+#if defined(SF_AS3_AOTC) || defined(SF_AS3_AOTC2)
+    Value(Traits& tr, TraceNullType isNull, SNode& n);
     Value(InstanceTraits::Traits& tr, TraceNullType isNull, SNode& n);
     Value(ClassTraits::Traits& tr, TraceNullType isNull, SNode& n);
 
@@ -475,6 +547,25 @@ public:
         value = v;
     }
 
+#ifdef SF_SAFE_DOUBLE
+    ///
+    SF_INLINE
+    void Assign(double v)
+    {
+        Release();
+        SetKind(kNumber);
+        value = v;
+    }
+    SF_INLINE
+    void AssignUnsafe(double v)
+    {
+        SF_ASSERT(!IsRefCounted());
+
+        SetKind(kNumber);
+        value = v;
+    }
+#endif
+
     ///
     SF_INLINE
     void Assign(Number v)
@@ -541,13 +632,17 @@ public:
     void AssignUnsafe(Instances::ThunkFunction* v);
 
     ///
-    void Assign(Instances::Namespace* v);
-    void AssignUnsafe(Instances::Namespace* v);
+    void Assign(Instances::fl::Namespace* v);
+    void AssignUnsafe(Instances::fl::Namespace* v);
 
 public:
     // Assignment operators below eliminate a temporary Value object
     // and an expensive Release() call.
     Value& operator =(const Value& other) { Assign(other); return *this; }
+    Value& operator =(bool v) { Assign(v); return *this; }
+    Value& operator =(SInt32 v) { Assign(v); return *this; }
+    Value& operator =(UInt32 v) { Assign(v); return *this; }
+    Value& operator =(Number v) { Assign(v); return *this; }
     Value& operator =(const ThunkInfo& v) { Assign(v); return *this; }
     Value& operator =(const ASString& v) { Assign(v); return *this; }
     Value& operator =(ASStringNode* v) { Assign(v); return *this; }
@@ -555,7 +650,7 @@ public:
     Value& operator =(Class* v) { Assign(v); return *this; }
     Value& operator =(Instances::Function* v) { Assign(v); return *this; }
     Value& operator =(Instances::ThunkFunction* v) { Assign(v); return *this; }
-    Value& operator =(Instances::Namespace* v) { Assign(v); return *this; }
+    Value& operator =(Instances::fl::Namespace* v) { Assign(v); return *this; }
     template <typename OT>
     Value& operator =(const SPtr<OT>& v) { Assign(v); return *this; }
 
@@ -605,12 +700,12 @@ public:
     void PickUnsafe(Instances::ThunkFunction* v);
 
     ///
-    void Pick(Instances::Namespace* v);
-    void PickUnsafe(Instances::Namespace* v);
+    void Pick(Instances::fl::Namespace* v);
+    void PickUnsafe(Instances::fl::Namespace* v);
 
     /// Pick value from the stack and pop it.
-    void Pick(ValueStack& v);
-    void PickUnsafe(ValueStack& v);
+    void Pick(VSBase& v);
+    void PickUnsafe(VSBase& v);
 
 public:
     template <typename OT>
@@ -802,6 +897,20 @@ public:
         return value.operator UInt32();
     }
 
+#ifdef SF_SAFE_DOUBLE
+    ///
+    operator double&()
+    {
+        SF_ASSERT(GetKind() == kNumber);
+        return value;
+    }
+    operator double() const
+    {
+        SF_ASSERT(GetKind() == kNumber);
+        return value;
+    }
+#endif
+
     ///
     operator Number&()
     {
@@ -857,13 +966,19 @@ public:
     }
 
     ///
-    operator Instances::Namespace&() const
+    operator Instances::fl::Namespace&() const
     {
         SF_ASSERT(IsNamespace());
-        SF_ASSERT(static_cast<Instances::Namespace*>(value));
-        return *static_cast<Instances::Namespace*>(value);
+        SF_ASSERT(static_cast<Instances::fl::Namespace*>(value));
+        return *static_cast<Instances::fl::Namespace*>(value);
     }
     
+    const ThunkInfo& GetThunkFunct() const
+    {
+        SF_ASSERT(IsThunkClosure());
+        return value.GetThunkFunct();
+    }
+
 public:
     // Convert to not Value data types.
 
@@ -939,7 +1054,7 @@ public:
         SF_ASSERT(IsObject() || IsNamespace());
         return (GASRefCountBase*)value.VS._1.VObj;
     }
-    Instances::Namespace* GetNamespace() const
+    Instances::fl::Namespace* GetNamespace() const
     {
         SF_ASSERT(IsNamespace());
         return value.VS._1.VNs;
@@ -996,11 +1111,11 @@ public:
     }
 
 	//
-    const Instances::Namespace& AsNamespace() const
+    const Instances::fl::Namespace& AsNamespace() const
     {
         SF_ASSERT(IsNamespace());
-        SF_ASSERT(static_cast<const Instances::Namespace*>(value));
-        return *static_cast<const Instances::Namespace*>(value);
+        SF_ASSERT(static_cast<const Instances::fl::Namespace*>(value));
+        return *static_cast<const Instances::fl::Namespace*>(value);
     }
 
     //
@@ -1011,7 +1126,7 @@ public:
         return value.GetTraits();
     }
 
-#ifdef SF_AS3_AOTC
+#if defined(SF_AS3_AOTC) || defined(SF_AS3_AOTC2)
     //
     SF_INLINE
     SNode& GetSNode() const
@@ -1052,10 +1167,10 @@ public:
         SF_ASSERT(GetKind() == kString || (GetKind() == kObject && value.VS._1.VObj == NULL));
         return value;
     }
-    SInt32 GetMethodInd() const
+    Abc::MiInd GetMethodInfoInd() const
     {
         SF_ASSERT(GetKind() == kMethodInd);
-        return value;
+        return Abc::MiInd(static_cast<SInt32>(value));
     }
     SInt32 GetVTableInd() const
     {
@@ -1092,15 +1207,28 @@ public:
     // Can throw exceptions.
     // Return false in case of exception.
     // result will not be modified in case of exception.
-    CheckResult Convert2PrimitiveValueUnsafe(Value& result, Hint hint = hintNone) const;
+    CheckResult Convert2PrimitiveValueUnsafe(ASStringManager& sm, Value& result, Hint hint = hintNone) const;
+    CheckResult Convert2PrimitiveValueUnsafeHintNumber(Value& result) const;
     // Can throw exceptions.
     // Return false in case of exception.
     // Value will not be modified in case of exception.
-    CheckResult ToPrimitiveValue()
+    CheckResult ToPrimitiveValue(ASStringManager& sm)
     {
         Value v = GetUndefined();
         bool result = false;
-        if (Convert2PrimitiveValueUnsafe(v))
+        if (Convert2PrimitiveValueUnsafe(sm, v))
+        {
+            Swap(v);
+            result = true;
+        }
+
+        return result;
+    }
+    CheckResult ToPrimitiveValueHintNumber()
+    {
+        Value v = GetUndefined();
+        bool result = false;
+        if (Convert2PrimitiveValueUnsafeHintNumber(v))
         {
             Swap(v);
             result = true;
@@ -1121,7 +1249,7 @@ public:
     // (ECMA-262 section 9.3)
     // Can throw exceptions.
     // Return false in case of exception.
-    SF_INLINE
+    inline
     CheckResult Convert2NumberInline(Number& result) const
     {
         KindType kind = GetKind();
@@ -1129,19 +1257,27 @@ public:
         switch(kind)
         {
         case kNumber:
-            result = value;
+            result = value.VNumber;
             break;
         case kUndefined:
             result = NumberUtil::NaN();
             break;
         case kBoolean:
-            result = value.VS._1.VBool ? 1.0 : NumberUtil::POSITIVE_ZERO();
+            result = value.VS._1.VBool ? Double(1.0) : NumberUtil::POSITIVE_ZERO();
             break;
         case kInt:
+#ifdef SF_SAFE_DOUBLE
+            result = value.VS._1.VInt;
+#else
             result = static_cast<Number>(value.VS._1.VInt);
+#endif
             break;
         case kUInt:
+#ifdef SF_SAFE_DOUBLE
+            result = value.VS._1.VUInt;
+#else
             result = static_cast<Number>(value.VS._1.VUInt);
+#endif
             break;
         default:
             return Convert2NumberInternal(result, kind);
@@ -1195,17 +1331,10 @@ public:
     }
     
 public:
-    SF_INLINE
-    bool IsNull() const 
+    bool IsNull() const
     { 
-        bool result;
-
-        if (IsObject())
-            result = value.VS._1.VObj == NULL;
-        else
-            result = false;
-
-        return result;
+        const KindType k = GetKind();
+        return (IsObject(k) || IsString(k)) && value.VS._1.VObj == NULL;
     }
 
     static bool IsInt(const KindType k) { return k == kInt || k == kUInt; }
@@ -1284,7 +1413,11 @@ public:
     static bool IsPrimitive(const KindType k) { return (k < kThunk || k == kString); }
     bool IsPrimitive() const { return IsPrimitive(GetKind()); }
 
+#ifdef SF_AS3_REFCOUNTED_TRAITS
+    static bool IsRefCounted(const KindType k) { return k > kVTableInd; }
+#else
     static bool IsRefCounted(const KindType k) { return k > kClassTraits; }
+#endif
     bool IsRefCounted() const { return IsRefCounted(GetKind()); }
 
 #if 0
@@ -1295,7 +1428,7 @@ public:
     bool IsGarbageCollectable() const { return GetKind() > kString; }
 #endif
 
-#ifdef SF_AS3_AOTC
+#if defined(SF_AS3_AOTC) || defined(SF_AS3_AOTC2)
     static bool IsTraits(const KindType k) { return k >= kInstanceTraits && k <= kSNodeCT; }
     bool IsTraits() const { return IsTraits(GetKind()); }
 
@@ -1331,6 +1464,10 @@ public:
 
 public:
     bool operator ==(const Value& other) const;
+    bool operator !=(const Value& other) const
+    {
+        return !operator ==(other);
+    }
 
     struct HashFunctor
     {
@@ -1355,16 +1492,19 @@ public:
 
 public:
     // Function call. It will use undefined for *this* value.
-    Value operator()() const;
+    Value operator()(VM& vm) const;
 
     template <typename T1>
-    Value operator()(const T1& a1) const;
+    Value operator()(VM& vm, const T1& a1) const;
 
     template <typename T1, typename T2>
-    Value operator()(const T1& a1, const T2& a2) const;
+    Value operator()(VM& vm, const T1& a1, const T2& a2) const;
 
     template <typename T1, typename T2, typename T3>
-    Value operator()(const T1& a1, const T2& a2, const T3& a3) const;
+    Value operator()(VM& vm, const T1& a1, const T2& a2, const T3& a3) const;
+
+public:
+    SPtr<Class> constructor(VM& vm) const;
 
 private:
     SF_INLINE
@@ -1373,9 +1513,13 @@ private:
         // We should check value.VS._1.VStr for NULL outside of this function.
         value.VS._1.VStr->AddRef();
     }
-#ifdef SF_AS3_AOTC
+#if defined(SF_AS3_AOTC) || defined(SF_AS3_AOTC2)
     void AddRefSNode() const;
     void ReleaseSNode() const;
+#endif
+#ifdef SF_AS3_REFCOUNTED_TRAITS
+    void AddRefTraits() const;
+    void ReleaseTraits();
 #endif
     void AddRefObject() const;
     void AddRefClosure() const;
@@ -1460,7 +1604,7 @@ private:
         Instances::Function* VFunct;
         const ThunkInfo* VThunk;
         Instances::ThunkFunction* VThunkFunct;
-        Instances::Namespace* VNs;
+        Instances::fl::Namespace* VNs;
         InstanceTraits::Traits* ITr;
         ClassTraits::Traits* CTr;
     };
@@ -1470,7 +1614,7 @@ private:
     {
         Object* VObj;
         const Traits* pTraits;
-#ifdef SF_AS3_AOTC
+#if defined(SF_AS3_AOTC) || defined(SF_AS3_AOTC2)
         SNode* VSNode;
 #endif
     };
@@ -1496,6 +1640,10 @@ private:
 #endif
         VU(SInt32 v) { VS._1.VInt = v; }
         VU(UInt32 v) { VS._1.VUInt = v; }
+        VU(float v) { VNumber = v; }
+#ifdef SF_SAFE_DOUBLE
+        VU(double v) { VNumber = v; }
+#endif
         VU(Number v) { VNumber = v; }
         VU(ASStringNode* v) { VS._1.VStr = v; }
         VU(Object* v) { VS._1.VObj = v; }
@@ -1503,11 +1651,11 @@ private:
         VU(Instances::Function* v) { VS._1.VFunct = v; }
         VU(const ThunkInfo& v) { VS._1.VThunk = &v; }
         VU(Instances::ThunkFunction* v) { VS._1.VThunkFunct = v; }
-        VU(Instances::Namespace* v) { VS._1.VNs = v; }
+        VU(Instances::fl::Namespace* v) { VS._1.VNs = v; }
         VU(InstanceTraits::Traits& tr) { VS._1.ITr = &tr; }
         VU(ClassTraits::Traits& tr) { VS._1.CTr = &tr; }
 
-#ifdef SF_AS3_AOTC
+#if defined(SF_AS3_AOTC) || defined(SF_AS3_AOTC2)
         VU(InstanceTraits::Traits& tr, SNode& n)
         {
             VS._1.ITr = &tr;
@@ -1549,14 +1697,19 @@ private:
         operator UInt32&() { return VS._1.VUInt; }
         operator UInt32() const { return VS._1.VUInt; }
 
-#if !defined(SF_CC_SNC) && !defined(SF_CC_MWERKS) && !defined(SF_CC_ARM) && !defined(SF_CC_GHS)
-
+#if !defined(SF_CC_SNC) && !defined(SF_CC_MWERKS) && !defined(SF_CC_ARM) && !defined(SF_CC_GHS) && !defined(SF_CC_CLANG)
         ///
         operator UPInt() const { return VS._1.VUInt; }
 #endif
 
+#ifdef SF_SAFE_DOUBLE
         ///
-        operator Number&() { return VNumber; }
+        operator double&() { return VNumber; }
+        operator double() const { return VNumber; }
+#endif
+
+        ///
+        operator Number&() { return reinterpret_cast<Number&>(VNumber); }
         operator Number() const { return VNumber; }
 
         ///
@@ -1578,19 +1731,20 @@ private:
         operator Instances::ThunkFunction*() const { return VS._1.VThunkFunct; }
 
         ///
-        operator Instances::Namespace*() const { return VS._1.VNs; }
+        operator Instances::fl::Namespace*() const { return VS._1.VNs; }
 
         ///
         Instances::Function* GetFunct() const { return VS._1.VFunct; }
+        const ThunkInfo& GetThunkFunct() const { return *VS._1.VThunk; }
         const Traits& GetTraits() const { return *VS._2.pTraits; }
 
         ///
-#ifdef SF_AS3_AOTC
+#if defined(SF_AS3_AOTC) || defined(SF_AS3_AOTC2)
         SNode& GetSNode() const { return *VS._2.VSNode; }
 #endif
 
     public:
-        Number VNumber;
+        double  VNumber;
         VStruct VS;
     };
 
@@ -1601,11 +1755,58 @@ private:
 };
 
 ///////////////////////////////////////////////////////////////////////////
-inline
-Value::ObjectTag GetObjectTag(UPInt addr)
+inline Value::ObjectTag GetObjectTag(UPInt addr)
 {
     return (Value::ObjectTag)(addr & Value::ObjectTagMask);
 }
+
+///////////////////////////////////////////////////////////////////////////
+// VObject is a replica of Value.
+// VObject has *Object* type, although it can store values of any type.
+class VObject : public Value
+{
+public:
+    // Generic copy constructor.
+    VObject(const VObject& other) : Value(other) {}
+
+    // Copy constructor for not reference counted values.
+    VObject(const VObject& other, NotRefCountedType nrc) : Value(other, nrc) {}
+
+    // Pick value from the stack and pop it.
+    VObject(VSBase& v) : Value(v) {}
+    VObject(const VObject& other, StrongRefType sr) : Value(other, sr) {}
+
+    VObject() : Value() {}
+    VObject(Abc::MiInd v, const Traits& tr) : Value(v, tr) {}
+    VObject(SInt32 v, const Traits& tr, KindType k) : Value(v, tr, k) {}
+    explicit VObject(bool v) : Value(v) {}
+    explicit VObject(SInt32 v) : Value(v) {}
+#if defined(SF_OS_MAC) || defined(SF_OS_IPHONE) || defined(SF_64BIT_POINTERS) || defined(SF_CC_MSVC)
+    explicit VObject(UPInt v) : Value(v) {}
+#endif
+    explicit VObject(UInt32 v) : Value(v) {}
+    explicit VObject(Number v) : Value(v) {}
+    VObject(const ThunkInfo& v) : Value(v) {}
+    VObject(const ASString& v) : Value(v) {}
+    VObject(ASStringNode* v) : Value(v) {}
+
+    // This constructor is declared as explicit to prevent unexpected type convention.
+    template <typename OT>
+    explicit VObject(const SPtr<OT>& v) : Value(v) {}
+    // Pick semantic.
+    template <typename OT>
+    VObject(SPtr<OT>& v, PickType pt) : Value(v, pt) {}
+
+
+    explicit VObject(Object* v) : Value(v) {}
+    explicit VObject(Class* v) : Value(v) {}
+    explicit VObject(Instances::Function* v) : Value(v) {}
+    explicit VObject(Instances::ThunkFunction* v) : Value(v) {}
+    explicit VObject(Instances::fl::Namespace* v) : Value(v) {}
+
+    VObject(Object* p, const ThunkInfo& f) : Value(p, f) {}
+    VObject(Object* p, SInt32 ind, bool super)  : Value(p, ind, super) {}
+};
 
 ///////////////////////////////////////////////////////////////////////////
 // It is basically the same thing as SPtr except it uses bits 2 and 3 to
@@ -1659,31 +1860,8 @@ public:
 public:
     // Setters.
 
-    SelfType& SetValue(const Value& v)
-    {
-        ObjType* addr = MakeAddr(v);
-
-        if (addr != pObject)
-        {
-            Release();
-            pObject = addr;
-            AddRef();
-        }
-
-        return *this;
-    }
-    SelfType& Set(const SelfType& other)
-    {
-        if (&other != this)
-        {
-            Release();
-            other.AddRef();
-
-            pObject = other.pObject;
-        }
-
-        return *this;
-    }
+    SelfType& SetValue(const Value& v);
+    SelfType& Set(const SelfType& other);
 
 public:
     // Getters.
@@ -1730,20 +1908,7 @@ private:
         return (ObjType*)((UPInt)GetAddrNoTag() & ~1);
     }
 
-    static ObjType* MakeAddr(const Value& v)
-    {
-        ObjType* addr = NULL;
-
-        if (v.IsObject() || v.IsNamespace())
-        {
-            GASRefCountBase* vv = v.GetGASRefCountBase();
-
-            if (vv)
-                addr = (ObjType*)((UPInt)vv | v.GetObjectTag());
-        }
-
-        return addr;
-    }
+    static ObjType* MakeAddr(const Value& v);
 
     void AddRef() const;
     void Release() const;
@@ -1821,11 +1986,7 @@ bool Value::IsNaN_OR_NP_ZERO() const
 SF_INLINE
 Value::Number MakeValueNumber(double v)
 {
-#ifdef SF_NO_DOUBLE
-    return NumberUtil::ConvertDouble2Float(v);
-#else
     return v;
-#endif
 }
 
 inline
@@ -1850,6 +2011,140 @@ bool StrictEqual(const Value& x, const Value& y);
 CheckResult AbstractEqual(bool& result, const Value& l, const Value& r);
 
 CheckResult Add(StringManager& sm, Value& result, const Value& l, const Value& r);
+
+inline
+CheckResult Multiply(Value::Number& result, const Value& l, const Value& r) 
+{
+    bool res = false;
+    Value::Number left;
+    Value::Number right = 0.0;
+
+    if (l.Convert2Number(left) && r.Convert2Number(right))
+    {
+        result = left * right;
+        res = true;
+    }
+
+    return res;
+}
+
+inline
+CheckResult Subtract(Value::Number& result, const Value& l, const Value& r) 
+{
+    bool res = false;
+    Value::Number left;
+    Value::Number right = 0.0;
+
+    if (l.Convert2Number(left) && r.Convert2Number(right))
+    {
+        result = left - right;
+        res = true;
+    }
+
+    return res;
+}
+
+inline
+CheckResult Divide(Value::Number& result, const Value& l, const Value& r)
+{
+    bool res = false;
+    Value::Number left;
+    Value::Number right = 0.0;
+
+    if (l.Convert2Number(left) && r.Convert2Number(right))
+    {
+        result = left / right;
+        res = true;
+    }
+
+    return res;
+}
+
+
+// Not exception-safe version.
+inline
+Value Increment(const Value& v)
+{
+    Value::Number value;
+
+    // Conversion is necessary here.
+    if (v.Convert2Number(value))
+        value = value + 1;
+
+    return Value(value);
+}
+
+// Not exception-safe version.
+inline
+Value Decrement(const Value& v)
+{
+    Value::Number value;
+
+    // Conversion is necessary here.
+    if (v.Convert2Number(value))
+        value = value - 1;
+
+    return Value(value);
+}
+
+// Not exception-safe version.
+inline
+Value AddNEC(StringManager& sm, const Value& l, const Value& r)
+{
+    Value result;
+    Add(sm, result, l, r).DoNotCheck();
+    return result;
+}
+
+// Not exception-safe version.
+inline
+Value::Number Subtract(const Value& l, const Value& r) 
+{
+    Value::Number left;
+    Value::Number right = 0.0;
+
+    if (l.Convert2Number(left) && r.Convert2Number(right))
+        right = left - right;
+
+    return right;
+}
+
+// Not exception-safe version.
+inline
+Value::Number Multiply(const Value& l, const Value& r) 
+{
+    Value::Number left;
+    Value::Number right = 0.0;
+
+    if (l.Convert2Number(left) && r.Convert2Number(right))
+        right = left * right;
+
+    return right;
+}
+
+inline
+Value::Number Divide(const Value& l, const Value& r)
+{
+    Value::Number left;
+    Value::Number right = 0.0;
+
+    if (l.Convert2Number(left) && r.Convert2Number(right))
+        right = left / right;
+
+    return right;
+}
+
+inline
+Value::Number Modulo(const Value& l, const Value& r) 
+{
+    Value::Number left;
+    Value::Number right = 0.0;
+
+    if (l.Convert2Number(left) && r.Convert2Number(right))
+        right = fmod(left, right);
+
+    return right;
+}
 
 ///////////////////////////////////////////////////////////////////////////
 enum Boolean3 { undefined3, true3, false3 };
@@ -1888,6 +2183,143 @@ bool Value::operator ==(const Value& other) const
 #endif
 }
 
+///////////////////////////////////////////////////////////////////////////
+// (ECMA-262 section 11.8.1)
+// Can throw exceptions.
+// Return false in case of exception.
+SF_INLINE
+CheckResult LessThan(bool& result, const Value& l, const Value& r)
+{
+    Boolean3 val_res = undefined3;
+    const bool rc = AbstractLessThan(val_res, l, r);
+    result = (val_res == true3);
+
+    return rc;
+}
+
+// (ECMA-262 section 11.8.2)
+// Can throw exceptions.
+// Return false in case of exception.
+SF_INLINE
+CheckResult GreaterThan(bool& result, const Value& l, const Value& r)
+{
+    Boolean3 val_res = undefined3;
+    // This call is different from LessThan() ...
+    const bool rc = AbstractLessThan(val_res, r, l);
+    result = (val_res == true3);
+
+    return rc;
+}
+
+// (ECMA-262 section 11.8.3)
+// Can throw exceptions.
+// Return false in case of exception.
+SF_INLINE
+CheckResult LessThanOrEqual(bool& result, const Value& l, const Value& r)
+{
+    Boolean3 val_res = undefined3;
+    // This call is different from LessThan() ...
+    const bool rc = AbstractLessThan(val_res, r, l);
+    result = (val_res == false3);
+
+    return rc;
+}
+
+// (ECMA-262 section 11.8.4)
+// Can throw exceptions.
+// Return false in case of exception.
+SF_INLINE
+CheckResult GreaterThanOrEqual(bool& result, const Value& l, const Value& r)
+{
+    Boolean3 val_res = undefined3;
+    // This call is different from LessThan() ...
+    const bool rc = AbstractLessThan(val_res, l, r);
+    result = (val_res == false3);
+
+    return rc;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Not exception-safe version.
+SF_INLINE
+bool Equal(const Value& l, const Value& r)
+{
+    bool result;
+    return AbstractEqual(result, l, r) && result;
+}
+
+// Not exception-safe version.
+SF_INLINE
+bool NotEqual(const Value& l, const Value& r)
+{
+    bool result;
+    return AbstractEqual(result, l, r) && !result;
+}
+
+// Not exception-safe version.
+SF_INLINE
+bool NotLessThan(const Value& l, const Value& r)
+{
+    Boolean3 result;
+    return AbstractLessThan(result, l, r) && result != true3;
+}
+
+// Not exception-safe version.
+SF_INLINE
+bool NotLessEq(const Value& l, const Value& r)
+{
+    Boolean3 result;
+    return AbstractLessThan(result, r, l) && result != false3;
+}
+
+// Not exception-safe version.
+SF_INLINE
+bool NotGreaterThan(const Value& l, const Value& r)
+{
+    Boolean3 result;
+    return AbstractLessThan(result, r, l) && result != true3;
+}
+
+// Not exception-safe version.
+SF_INLINE
+bool NotGreaterEq(const Value& l, const Value& r)
+{
+    Boolean3 result;
+    return AbstractLessThan(result, l, r) && result != false3;
+}
+
+// Not exception-safe version.
+SF_INLINE
+bool LessThan(const Value& l, const Value& r)
+{
+    bool result;
+    return AS3::LessThan(result, l, r) && result;
+}
+
+// Not exception-safe version.
+SF_INLINE
+bool LessEq(const Value& l, const Value& r)
+{
+    bool result;
+    return LessThanOrEqual(result, l, r) && result;
+}
+
+// Not exception-safe version.
+SF_INLINE
+bool GreaterThan(const Value& l, const Value& r)
+{
+    bool result;
+    return GreaterThan(result, l, r) && result;
+}
+
+// Not exception-safe version.
+SF_INLINE
+bool GreaterEq(const Value& l, const Value& r)
+{
+    bool result;
+    return GreaterThanOrEqual(result, l, r) && result;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 inline
 Value::TraceNullType CanBeNull(const Value& _1, const Value& _2)
@@ -1900,6 +2332,202 @@ Value::TraceNullType CanBeNull(const Value& _1, const Value& _2)
 
     return Value::NullOrNot;
 }
+
+///////////////////////////////////////////////////////////////////////////
+template <typename T>
+struct BoxArgV1
+{
+    enum {AN = 1};
+
+    BoxArgV1(const T& v, AS3::StringManager& /*sm*/) : V(v) {}
+    BoxArgV1<T>& operator=(const BoxArgV1<T>&);
+
+    const Value V;
+};
+
+template <>
+struct BoxArgV1<bool>
+{
+    enum {AN = 1};
+
+    BoxArgV1(bool v, AS3::StringManager&) : V(v) {}
+    BoxArgV1<bool>& operator=(const BoxArgV1<bool>&);
+
+    const Value V;
+};
+
+template <>
+struct BoxArgV1<SInt32>
+{
+    enum {AN = 1};
+
+    BoxArgV1(SInt32 v, AS3::StringManager&) : V(v) {}
+    BoxArgV1<SInt32>& operator=(const BoxArgV1<SInt32>&);
+
+    const Value V;
+};
+
+template <>
+struct BoxArgV1<UInt32>
+{
+    enum {AN = 1};
+
+    BoxArgV1(UInt32 v, AS3::StringManager&) : V(v) {}
+    BoxArgV1<UInt32>& operator=(const BoxArgV1<UInt32>&);
+
+    const Value V;
+};
+
+template <>
+struct BoxArgV1<Value::Number>
+{
+    enum {AN = 1};
+
+    BoxArgV1(Value::Number v, AS3::StringManager&) : V(v) {}
+    BoxArgV1<Value::Number>& operator=(const BoxArgV1<Value::Number>&);
+
+    const Value V;
+};
+
+template <>
+struct BoxArgV1<char*>
+{
+    enum {AN = 1};
+
+    BoxArgV1(const char* v, AS3::StringManager& sm) : V(sm.CreateString(v)) {}
+    BoxArgV1<char*>& operator=(const BoxArgV1<char*>&);
+
+    const Value V;
+};
+
+template <>
+struct BoxArgV1<const char*>
+{
+    enum {AN = 1};
+
+    BoxArgV1(const char* v, AS3::StringManager& sm) : V(sm.CreateString(v)) {}
+    BoxArgV1<const char*>& operator=(const BoxArgV1<const char*>&);
+
+    const Value V;
+};
+
+template <UPInt N>
+struct BoxArgV1<char[N]>
+{
+    enum {AN = 1};
+
+    BoxArgV1(const char (&v)[N], AS3::StringManager& sm) : V(sm.CreateConstString(v, N)) {}
+    BoxArgV1<char[N]>& operator=(const BoxArgV1<char[N]>&);
+
+    const Value V;
+};
+
+template <UPInt N>
+struct BoxArgV1<const char[N]>
+{
+    enum {AN = 1};
+
+    BoxArgV1(const char (&v)[N], AS3::StringManager& sm) : V(sm.CreateConstString(v, N)) {}
+    BoxArgV1<const char[N]>& operator=(const BoxArgV1<const char[N]>&);
+
+    const Value V;
+};
+
+template <typename T1, typename T2>
+struct BoxArgV2 : public BoxArgV1<T1>
+{
+    enum {AN = 2};
+
+    BoxArgV2(const T1& v1, const T2& v2, AS3::StringManager& sm) : BoxArgV1<T1>(v1, sm), V2(v2, sm) {}
+    BoxArgV2<T1, T2>& operator=(const BoxArgV2<T1, T2>&);
+
+    const BoxArgV1<T2> V2;
+};
+
+template <typename T1, typename T2, typename T3>
+struct BoxArgV3 : public BoxArgV2<T1, T2>
+{
+    enum {AN = 3};
+
+    BoxArgV3(const T1& v1, const T2& v2, const T3& v3, AS3::StringManager& sm) 
+        : BoxArgV2<T1, T2>(v1, v2, sm)
+        , V3(v3, sm) 
+    {
+    }
+    BoxArgV3<T1, T2, T3>& operator=(const BoxArgV3<T1, T2, T3>&);
+
+    const BoxArgV1<T3> V3;
+};
+
+template <typename T1, typename T2, typename T3, typename T4>
+struct BoxArgV4 : public BoxArgV3<T1, T2, T3>
+{
+    enum {AN = 4};
+
+    BoxArgV4(const T1& v1, const T2& v2, const T3& v3, const T4& v4, AS3::StringManager& sm) 
+        : BoxArgV3<T1, T2, T3>(v1, v2, v3, sm)
+        , V4(v4, sm)
+    {
+    }
+    BoxArgV4<T1, T2, T3, T4>& operator=(const BoxArgV4<T1, T2, T3, T4>&);
+
+    const BoxArgV1<T4> V4;
+};
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5>
+struct BoxArgV5 : public BoxArgV4<T1, T2, T3, T4>
+{
+    enum {AN = 5};
+
+    BoxArgV5(const T1& v1, const T2& v2, const T3& v3, const T4& v4, const T5& v5, AS3::StringManager& sm) 
+        : BoxArgV4<T1, T2, T3, T4>(v1, v2, v3, v4, sm)
+        , V5(v5, sm)
+    {
+    }
+    BoxArgV5<T1, T2, T3, T4, T5>& operator=(const BoxArgV5<T1, T2, T3, T4, T5>&);
+
+    const BoxArgV1<T5> V5;
+};
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5, typename T6>
+struct BoxArgV6 : public BoxArgV5<T1, T2, T3, T4, T5>
+{
+    enum {AN = 6};
+
+    BoxArgV6(const T1& v1, const T2& v2, const T3& v3, const T4& v4, const T5& v5, const T5& v6, AS3::StringManager& sm) 
+        : BoxArgV5<T1, T2, T3, T4, T5>(v1, v2, v3, v4, v5, sm)
+        , V6(v6, sm)
+    {
+    }
+    BoxArgV6<T1, T2, T3, T4, T5, T6>& operator=(const BoxArgV6<T1, T2, T3, T4, T5, T6>&);
+
+    const BoxArgV1<T6> V6;
+};
+
+///////////////////////////////////////////////////////////////////////////
+template <typename T>
+struct Clean
+{
+    typedef T type;
+};
+
+template <typename T>
+struct Clean<const T>
+{
+    typedef T type;
+};
+
+template <typename T>
+struct Clean<T&>
+{
+    typedef T type;
+};
+
+template <typename T>
+struct Clean<const T&>
+{
+    typedef T type;
+};
 
 }}} // namespace Scaleform { namespace GFx { namespace AS3 {
 
@@ -1918,6 +2546,7 @@ void Swap<GFx::AS3::Value>(GFx::AS3::Value& l, GFx::AS3::Value& r)
 
 namespace Scaleform { namespace GFx { 
 
+    ///////////////////////////////////////////////////////////////////////////
 template<>
 inline
 void ASString::operator = <AS3::Value>(const AS3::Value& v)
@@ -1927,6 +2556,16 @@ void ASString::operator = <AS3::Value>(const AS3::Value& v)
     else
         AssignNode(v.AsStringNode());
 }
+
+///////////////////////////////////////////////////////////////////////////
+#if defined(SF_SAFE_DOUBLE)
+
+inline Double::Double(const AS3::Value& v)
+: value(v)
+{
+}
+
+#endif
 
 }} // namespace Scaleform { namespace GFx { 
 

@@ -99,7 +99,16 @@ void RenderThread::setToleranceParams(const Render::ToleranceParams& params)
 {
     TolParams = params;
     if (pRenderer)
+	{
         pRenderer->SetToleranceParams(TolParams);
+		pRenderer->GetHAL()->GetMeshCache().ClearCache();
+	}
+}
+
+void RenderThread::getToleranceParams(Render::ToleranceParams* params)
+{
+	if (pRenderer && params)
+		*params = pRenderer->GetToleranceParams();
 }
 
 void RenderThread::addDisplayHandle(const DisplayHandleType& root, DisplayHandleCategory cat, bool clearBeforeAdd,
@@ -206,6 +215,11 @@ RenderThread::DHContainerType& RenderThread::DisplayWindow::getDHContainer(Displ
     }
 }
 
+void RenderThread::finishFrame()
+{
+    pRenderer->FinishFrame();
+}
+
 void RenderThread::drawFrame()
 {
     {   // Scope timer should not include AmpServer::AdvanceFrame, where stats are reported
@@ -273,7 +287,10 @@ void RenderThread::drawFrame1(DisplayWindow* pDispWin, bool capture)
 	Render::Viewport vp(pDispWin->ViewSize.Width, pDispWin->ViewSize.Height,
 		0, 0, pDispWin->ViewSize.Width, pDispWin->ViewSize.Height, ViewportFlags);
 
-    pHal->SetProfileViews(getProfileMode());
+    pHal->GetProfiler().SetProfileMode(getProfileMode());
+    pHal->GetProfiler().SetProfileFlags(getProfileFlags());
+    pHal->GetProfiler().SetHighlightedBatch(getProfileBatchHighlight());
+    pHal->SetRasterMode(!Wireframe ? Render::HAL::RasterMode_Solid : Render::HAL::RasterMode_Wireframe);
 
     // If prepass is required, render it now. Assume that overlays and cursor handles do
     // not require a prepass, and thus they will not be rendered here, only in the final pass.
@@ -299,7 +316,12 @@ void RenderThread::drawFrame1(DisplayWindow* pDispWin, bool capture)
     pHal->BeginScene();
 	{
 		if (!(ViewportFlags & Render::Viewport::View_Stereo_AnySplit) || pHal->GetMatrices()->S3DDisplay != Render::StereoRight)
-			pDevice->Clear(getBackgroundColor().ToColor32());
+        {
+            if (!(ViewportFlags & Render::Viewport::View_NoClear))
+            {
+                pDevice->Clear(getBackgroundColor().ToColor32());
+            }
+        }
 
 		// Normal handles
 		for (unsigned i = 0; i < pDispWin->NormalHandles.GetSize(); i++)
@@ -321,7 +343,8 @@ void RenderThread::drawFrame1(DisplayWindow* pDispWin, bool capture)
 	}
 
 	// Draw cursors and overlays (HUD).
-    pHal->SetProfileViews(0);
+    pHal->GetProfiler().SetProfileMode(Render::Profile_None);    // Do not apply profile views to the overlays.
+    pHal->SetRasterMode(Render::HAL::RasterMode_Solid);          // Always render overlays in solid.
 	pHal->BeginScene();
 	{
 		// Render cursors.
@@ -367,7 +390,6 @@ void RenderThread::drawDisplayHandle(DisplayHandleDesc& desc, const Render::View
         // BGColor alpha 0 => no clear in BeginDisplay().
         if ( !hasViewport )
             pRenderer->BeginDisplay(0, vp);
-        pDevice->SetWireframe(Wireframe);
         pRenderer->Display(desc.hRoot);
         if ( !hasViewport )
             pRenderer->EndDisplay();
@@ -375,7 +397,6 @@ void RenderThread::drawDisplayHandle(DisplayHandleDesc& desc, const Render::View
         if (desc.pOnDisplay)
         {
             pRenderer->BeginDisplay(0, vp);
-            pDevice->SetWireframe(false);
             desc.pOnDisplay->OnDisplay(pRenderer);
             pRenderer->EndDisplay();
         }
@@ -501,10 +522,14 @@ void RenderThread::ResetRasterizationCount()
 
 void RenderThread::GetRenderInterfaces(Render::Interfaces* p)
 {
+    p->Clear();
     p->pRenderer2D = pRenderer;
-    p->pHAL = pRenderer->GetHAL();
-    p->pTextureManager = p->pHAL->GetTextureManager();
-    p->RenderThreadID = p->pHAL->GetRenderThreadId();
+    if (pRenderer)
+    {
+        p->pHAL = pRenderer->GetHAL();
+        p->pTextureManager = p->pHAL->GetTextureManager();
+        p->RenderThreadID = p->pHAL->GetRenderThreadId();
+    }
 }
 
 }} // Scaleform::Platform

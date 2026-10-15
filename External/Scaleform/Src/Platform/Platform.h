@@ -29,6 +29,7 @@ otherwise accompanies this software in either electronic or hard copy form.
 
 #include "Platform/Platform_CommandLine.h"
 #include "Platform/Platform_SystemCursorManager.h"
+#include "GFx/GFx_Player.h"
 //#include "GFx/IME/GFx_IMEManager.h"
 
 #ifdef SF_OS_PS3
@@ -158,6 +159,21 @@ enum ViewFlagConstants
     // Causes the mesh caches to use static index/vertex buffers, instead of dynamic ones 
     // (if applicable for the HAL's mesh cache - currently only D3D9).
     View_StaticBuffers     = 0x10000,
+
+    // Causes the created OpenGL context to use legacy mode rather than GL 3. Only applicable
+    // to OpenGL renderers.
+    View_GL20              = 0x20000,
+    
+    // Forces the shader system in D3D9 to use SM2.0 shaders, even if it is capable of SM3.0.
+    View_ShaderModel20     = 0x40000,
+
+    // Enables additional output by the graphics/driver layer. Only applicable to OpenGL 3.x+.
+    View_DebugMessages     = 0x80000,
+    // Allowed orientations
+    View_Portrait          = 0x100000,
+    View_ReversePortrait   = 0x200000,
+    View_Landscape         = 0x400000,
+    View_ReverseLandscape  = 0x800000
 };
 
 enum StereoFormats
@@ -187,22 +203,25 @@ enum DeviceCaps
 
 struct ViewConfig
 {
-    unsigned        ViewFlags;
-    unsigned        BitDepth; // 0 = default.
+    unsigned        ViewFlags;      // Bit-flags for configuration. See ViewFlagConstants.
+    int             ColorBits;      // The requested number of bits in the color buffer (-1 will use platform default).
+    int             DepthBits;      // The requested number of bits in the depth buffer (-1 will use platform default).
+    int             StencilBits;    // The requested number of bits in the stencil buffer (-1 will use platform default).
     Size<unsigned>  ViewSize;
     unsigned        Orientation;
     unsigned        StereoFormat;
     Point<int>      WindowPos;
     Size<unsigned>  MinSize;
+    const Args*     CommandLineArgs;    // The args passed to the App on the commandline.
 
     ViewConfig()
-        : ViewFlags(0), BitDepth(0), ViewSize(0), Orientation(0), StereoFormat(Stereo_None), WindowPos(0), MinSize(0) { }
+        : ViewFlags(0), ColorBits(-1), DepthBits(-1), StencilBits(-1), ViewSize(0), Orientation(0), StereoFormat(Stereo_None), WindowPos(0), MinSize(0) { }
     ViewConfig(const Size<unsigned>& sz)
-        : ViewFlags(View_Size), BitDepth(0), ViewSize(sz), Orientation(0), StereoFormat(Stereo_None), WindowPos(0), MinSize(0) { }
+        : ViewFlags(View_Size), ColorBits(-1), DepthBits(-1), StencilBits(-1), ViewSize(sz), Orientation(0), StereoFormat(Stereo_None), WindowPos(0), MinSize(0) { }
     ViewConfig(const Point<int> &pos, const Size<unsigned>& sz)
-        : ViewFlags(View_Pos|View_Size), BitDepth(0), ViewSize(sz), Orientation(0), StereoFormat(Stereo_None), WindowPos(pos), MinSize(0) { }
+        : ViewFlags(View_Pos|View_Size), ColorBits(-1), DepthBits(-1), StencilBits(-1), ViewSize(sz), Orientation(0), StereoFormat(Stereo_None), WindowPos(pos), MinSize(0) { }
     ViewConfig(unsigned width, unsigned height)
-        : ViewFlags(View_Size), BitDepth(0), ViewSize(width, height), Orientation(0), StereoFormat(Stereo_None), WindowPos(0), MinSize(0) { }
+        : ViewFlags(View_Size), ColorBits(-1), DepthBits(-1), StencilBits(-1), ViewSize(width, height), Orientation(0), StereoFormat(Stereo_None), WindowPos(0), MinSize(0) { }
     
     Size<unsigned> GetSize() const { return ViewSize; }
     void           SetSize(const Size<unsigned>& sz)
@@ -265,7 +284,7 @@ public:
         virtual void  ConfigureWindow(ViewConfig& newConfig) = 0;
     };
 
-    Device(Render::ThreadCommandQueue *commandQueue = 0);
+    Device(Render::ThreadCommandQueue *commandQueue);
     ~Device();
 
     Render::HAL* GetHAL() const;
@@ -283,6 +302,7 @@ public:
     bool        AdjustViewConfig(ViewConfig* config);
     bool        InitGraphics(const ViewConfig& config, Device::Window* window,
                              ThreadId renderThreadId = 0);
+    void        ResizeFrame(void* layer);
     bool        ReconfigureGraphics(const ViewConfig& config);
     void        ShutdownGraphics();
 
@@ -302,7 +322,6 @@ public:
     void        BeginFrame();
     void        SetWindow(Window* pwindow);
     void        PresentFrame(unsigned displays = Render::StereoCenter);
-    void        SetWireframe(bool wireframe);
     bool        TakeScreenShot(const String& filename);
 
     UInt32      GetCaps() const;
@@ -320,17 +339,22 @@ enum ThreadingType
     // AutoDetect means that causes the use of multi-threading
     // if Thread::GetCPUCount() > 1.
     TT_AutoDetect,
-    TT_Unspecified
+    TT_Unspecified,
+
+    TT_TypeMask         = 0x0000FFF,    // Bitmask, specifying the bits used for the threading type.
+    TT_WatchDogFlag     = 0x0001000,    // Enables the watchdog thread.
 };
 
 //------------------------------------------------------------------------
 // A platform independent interface for a gesture manager.
 class GestureManager : public RefCountBaseNTS<GestureManager, Stat_Default_Mem>
 {
-    class AppBase& TheApp;
 public:
+	class AppBase& TheApp;
     GestureManager(class AppBase& app) : TheApp(app) {}
-    virtual ~GestureManager() {}
+	virtual ~GestureManager() {}
+
+	virtual void SetMovie(Ptr<Scaleform::GFx::Movie> moviePtr) = 0;
 
     // 'screenPt' - the point in screen (window) coordinates;
     // 'moviePt'  - the point in Movie coordinate space.
@@ -347,6 +371,91 @@ enum ControllerIndexMasks
     InputWindow_Mask        = 0xff0000,
     InputWindow_Shift       = 16,
     InputController_Mask    = 0x00ffff
+};
+
+//------------------------------------------------------------------------
+
+// ***** Class ExtensionContext
+class FREFunctionBase
+{
+public:
+	FREFunctionBase(const char* Name) : StrName(Name)							{ }
+	virtual ~FREFunctionBase()													{ }
+
+	virtual bool Call(unsigned argc, const Scaleform::GFx::Value* const argv, Scaleform::GFx::Value* const result)
+		{ SF_UNUSED3(argc, argv, result); return false; }
+
+	// Name
+	const String& GetName() const											{ return StrName; }
+protected:
+	String StrName;
+};
+
+// ***** Class ExtensionContext
+class ExtensionContext
+{
+public:
+	ExtensionContext(const char* Name) 
+		: StrName(Name), ActionScriptDataValue(0)							{ }
+	virtual ~ExtensionContext()												{ }
+
+	virtual void Dispose()													{ }
+	virtual bool GenerateFREFunctions()										{ return false; }
+	virtual FREFunctionBase* GetFREFunction(const char* functionName) const	{ SF_UNUSED(functionName); return NULL; }
+
+	// Name
+	const String& GetName() const											{ return StrName; }
+
+	// ActionScriptData
+	GFx::Value* GetActionScriptData() const									{ return ActionScriptDataValue; }
+	void SetActionScriptData(GFx::Value* asData)							{ ActionScriptDataValue = asData; }
+protected:
+	String StrName;
+	GFx::Value* ActionScriptDataValue;
+};
+
+// ***** Class Extension
+class Extension
+{
+public:
+	Extension(const char* Name, const char* NativeLibraryPath) 
+		: StrName(Name), StrNativeLibraryPath(NativeLibraryPath)		{ }
+	virtual ~Extension()												{ }
+
+	virtual void Initializer()											{ }	
+	virtual void Finalizer()											{ }
+	virtual bool CreateContext(const char* contextType)					{ SF_UNUSED(contextType); return false; }
+	virtual ExtensionContext* GetContext(const char* contextType) const { SF_UNUSED(contextType); return NULL; }
+	virtual bool RemoveContext(const char* contextType)					{ SF_UNUSED(contextType); return false; }
+
+	// Properties
+	const String& GetName() const										{ return StrName; }
+	const String& GetNativeLibraryPath() const							{ return StrNativeLibraryPath; }
+protected:
+	String StrName, StrNativeLibraryPath;
+
+};
+
+// ***** Class Extension Manager 
+class ExtensionManager
+{
+public:
+    virtual ~ExtensionManager() { }
+	virtual bool Call(const char* extensionID, const char* contextID, const char* functionName, unsigned argc, const Scaleform::GFx::Value* const argv, Scaleform::GFx::Value* const result)
+		{ SF_UNUSED6(extensionID, contextID, functionName, argc, argv, result); return false; }
+	
+	virtual void DispatchStatusEventAsync(const ExtensionContext& context, const String& eventName, const String& eventParam)
+		{ SF_UNUSED3(context, eventName, eventParam); }
+
+	virtual void InitNativeExtension(const String& extensionName, const String& initializer)	{ SF_UNUSED2(extensionName, initializer); }
+	virtual const char* GetExtensionDirectory(const char* extensionID)							{ SF_UNUSED(extensionID); return NULL; }
+	virtual void InitializeExtensionContext(const char* extensionID, const char* contextID)		{ SF_UNUSED2(extensionID, contextID); }
+	virtual void FinalizeExtensionContext(const char* extensionID, const char* contextID)		{ SF_UNUSED2(extensionID, contextID); }
+	
+	virtual GFx::Value*	GetActionScriptData(const char* extensionID, const char* contextID)		{ SF_UNUSED2(extensionID, contextID); return NULL; }
+	virtual void SetActionScriptData(const char* extensionID, const char* contextID, GFx::Value* data)	{ SF_UNUSED3(extensionID, contextID, data); }
+
+	virtual Extension* GetExtension(const char* ExtensionID) const								{ SF_UNUSED(ExtensionID); return NULL; }
 };
 
 //------------------------------------------------------------------------
@@ -374,13 +483,44 @@ public:
     virtual bool            setupWindow(const String& title, const ViewConfig& config) = 0;
     
     virtual bool            IsMultitouchSupported() const { return false; }
+    virtual bool            IsDisplayActive() const { return true; }
+
+	// Extension context
+	virtual void InitNativeExtensionManager(ArrayLH<Extension*> *freExtensionArray)			{ SF_UNUSED(freExtensionArray); }
+	virtual ExtensionManager* GetExtensionManager()		{ return NULL; }
+	virtual bool Call(const char* ExtensionID, const char* ContextID, const char* FunctionName, unsigned argc, const Scaleform::GFx::Value* const argv, Scaleform::GFx::Value* const result) 
+		{ SF_UNUSED6(ExtensionID, ContextID, FunctionName, argc, argv, result); return false; }
+
+	virtual const char* GetExtensionDirectory(const char* extensionID)									{ SF_UNUSED(extensionID); return NULL; }
+	virtual void FinalizeExtensionContext(const char* extensionID, const char* contextID)				{ SF_UNUSED2(extensionID, contextID); }
+	virtual void InitializeExtensionContext(const char* extensionID, const char* contextID)				{ SF_UNUSED2(extensionID, contextID); }
+	virtual GFx::Value*	GetActionScriptData(const char* extensionID, const char* contextID)				{ SF_UNUSED2(extensionID, contextID); return NULL; }
+	virtual void SetActionScriptData(const char* extensionID, const char* contextID, GFx::Value* data)	{ SF_UNUSED3(extensionID, contextID, data); }
+	virtual void SetMovie(Ptr<Scaleform::GFx::Movie> pmovie)											{ SF_UNUSED(pmovie); }
 
     // Invoked when a virtual keyboard must be opened.
     // 'textBox' contains bounds of a textfield in world coordinates (stage), in pixels.
     virtual void            HandleVirtualKeyboardOpen(bool multiline, const Render::RectF& textBox) 
         { SF_UNUSED2(multiline,textBox); }
+
     // Invoked when a virtual keyboard must be closed 
     virtual void            HandleVirtualKeyboardClose() { }
+
+    virtual void            ProcessUrl(const String& url) { SF_UNUSED(url); }
+
+	// Accelerometer
+	virtual bool			RegisterAccelerometer(int accelerometerId)		{ SF_UNUSED(accelerometerId); return false; }
+	virtual bool			UnregisterAccelerometer(int accelerometerId)	{ SF_UNUSED(accelerometerId); return false; }
+	virtual bool			IsAccelerometerMuted() const			{ return true; }
+	virtual bool			IsAccelerometerSupported() const		{ return false; }
+	virtual void			SetAccelerometerInterval(int accelerometerId, int interval)	{ SF_UNUSED2(accelerometerId, interval); }
+
+	// Geolocation
+	virtual bool			RegisterGeolocation(int geolocationId)		{ SF_UNUSED(geolocationId); return false; }
+	virtual bool			UnregisterGeolocation(int geolocationId)	{ SF_UNUSED(geolocationId); return false; }
+	virtual bool			IsGeolocationMuted() const			{ return true; }
+	virtual bool			IsGeolocationSupported() const		{ return false; }
+	virtual void			SetGeolocationInterval(int geolocationId, int interval)	{ SF_UNUSED2(geolocationId, interval); }
 
 public:
     AppBase*        pApp;
@@ -579,6 +719,16 @@ public:
     virtual bool    OnOrientation(unsigned orientation, bool force = false)
     { SF_UNUSED2(orientation, force); return false; }
 
+	virtual void	OnAccelerometerUpdate(int idAcc, double timestamp, double accelerationX, double accelerationY, double accelerationZ)
+	{ SF_UNUSED5(idAcc, timestamp, accelerationX, accelerationY, accelerationZ); }
+
+	virtual void OnGeolocationUpdate(int idGeo, double latitude, double longitude, double altitude, double hAccuracy, double vAccuracy, double speed, double heading, double timestamp)
+	{ SF_UNUSED9(idGeo, latitude, longitude, altitude, hAccuracy, vAccuracy, speed, heading, timestamp); }
+
+	virtual void OnStatus(String* code, String* level, String* extensionId, String* contextId)
+	{ SF_UNUSED4(code, level, extensionId, contextId); }
+
+
     // Used for stereo
     virtual void    OnConfigurationChange(const ViewConfig& newConfig)
     { SF_UNUSED(newConfig); }
@@ -612,6 +762,7 @@ public:
 
     // A notification that comes from a system to the player about virtual keyboard disappearance.
     virtual void    NotifyHideVirtualKeyboard() {}
+
 
     // *** Window Setup / Message APIs
 

@@ -20,7 +20,6 @@ otherwise accompanies this software in either electronic or hard copy form.
 
 #include "Render/Render_Image.h"
 #include "Render/Render_TreeNode.h"
-#include "Render/Render_Filters.h"
 #include "Render/Render_ThreadCommandQueue.h"
 #include "Render/Render_Buffer.h"
 #include "Render/Render_Context.h"
@@ -53,19 +52,7 @@ public:
 
     // Fills in render interfaces on the render thread.
     // Current logic will use query the render thread for any non-default values.
-    void GetRenderInterfacesRT(Interfaces* p)
-    {
-        SF_DEBUG_ASSERT(pRTCommandQueue != NULL, "NULL pRTCommandQueue encountered, please ensure a valid ThreadCommandQueue is passed to MovieDef::CreateInstance before using BitmapData.\n");
-        pRTCommandQueue->GetRenderInterfaces(p);
-        if (IDefaults.pTextureManager)
-            p->pTextureManager = IDefaults.pTextureManager;
-        if (IDefaults.pHAL)
-            p->pHAL = IDefaults.pHAL;
-        if (IDefaults.pRenderer2D)
-            p->pRenderer2D = IDefaults.pRenderer2D;
-        if (IDefaults.RenderThreadID)
-            p->RenderThreadID = IDefaults.RenderThreadID;
-    }
+    void GetRenderInterfacesRT(Interfaces* p);
 
     // ContextCaptureNotify Implementation
     virtual void OnCapture();
@@ -73,10 +60,8 @@ public:
     virtual void OnShutdown(bool waitFlag);
     virtual void ExecuteNextCapture(ContextImpl::RenderNotify* notify);
 
-    void AddCaptureNotify(DICommandQueue* notify);
-    void RemoveCaptureNotify(DICommandQueue* notify);
-
     void AddTreeRootToKillList( TreeRoot* proot );
+	bool IsShutdownComplete() const { return !RContext || RContext->IsShutdownComplete(); }
 
 protected:
 
@@ -84,6 +69,8 @@ protected:
 
     // Cloned tree nodes are allocated from here on Draw()
     Context*     RContext;
+    char         RContextBacking[sizeof(Context)];
+
     // Associated context that controls the render thread frames
     // We should try to execute frame rendering when this context
     // calls NextCapture() on a captured frame of modifications
@@ -96,7 +83,7 @@ protected:
     Lock*                   getLock() { return &TreeRootKillListLock; }
     Lock                    TreeRootKillListLock;
     ArrayLH<TreeRoot*>      TreeRootKillList;
-    List<DICommandQueue>    QueueList;
+    Ptr<DICommandQueue>     Queue;
 
 private:
     // Default interface to be used if none are provided by render thread.
@@ -150,11 +137,8 @@ public:
     {
         DIState_Mapped      = 0x00000001,   // Set if the image's texture data is mapped from GPU data (in RT).
         DIState_MappedRead  = 0x00000002,   // Set if the image's texture data is mapped and readable only (ie. not writable).
-        DIState_UserMapped  = 0x00000004,   // Set if the user has explicitly mapped the image.
         DIState_CPUDirty    = 0x00000008,   // Set if a CPU-command has modified the mapped data (implies in pCPUModified list).
         DIState_GPUDirty    = 0x00000010,   // Set if a GPU-command has modified the mapped data (implies in pGPUModified list).
-        DIState_CmdPending  = 0x00000020,   // Set if a command is pending in the DrawableImage's queue.
-		DIState_ForceRemap  = 0x00000040,	// Set if the image's texture data should be re-mapped after updating staging data.
     };
 
     // Init with regular image
@@ -166,13 +150,14 @@ public:
     DrawableImage(ImageFormat format, ImageSize size, bool transparent,
                   Color fillColor, DrawableImageContext* drawableContext = 0);
 
+    virtual void            Release();
     ~DrawableImage();
 
     // ***** Data Accessors
     bool                    IsTransparent() const  { return Transparent; }
     DrawableImageContext*   GetContext() const { return pContext; }
     virtual RenderTarget*   GetRenderTarget() const { return pRT; }
-    static bool             MapImageSource(ImageData* data, ImageBase* i, bool rtMap);
+    static bool             MapImageSource(ImageData* data, ImageBase* i);
 
     // ***** Rendering APIs
 
@@ -221,7 +206,6 @@ public:
                      const Matrix2F& matrix = Matrix2F(), const Cxform& cform = Cxform(),
                      BlendMode blendMode = Blend_None, const Rect<SInt32>* clipRect = 0,
                      bool smoothing = false);
-
 
     void        FillRect(const Rect<SInt32>& rect, Color color);
 
@@ -281,8 +265,8 @@ public:
 
     void        Scroll(int x, int y);
 
-    bool        SetPixel(SInt32 x, SInt32 y, Color c);
-    bool        SetPixel32(SInt32 x, SInt32 y, Color c);
+    void        SetPixel(SInt32 x, SInt32 y, Color c);
+    void        SetPixel32(SInt32 x, SInt32 y, Color c);
 
     // Returns false in case of a bounds error; or the buffer does not contain enough pixels to 
     // fill the rectangle. It does fill as many pixels as possible in the second case.
@@ -313,10 +297,6 @@ public:
     virtual unsigned        GetMipmapCount() const{ return 1; }
 
 
-    // Explicit mapping from the user (not internal mapping due to use of rendering functions).
-    virtual bool            Map(ImageData* pdata, unsigned levelIndex = 0, unsigned levelCount = 0);    
-    virtual bool            Unmap();
-    
     virtual Texture*        GetTexture(TextureManager* pmanager);
 
     virtual bool    Decode(ImageData* pdest, CopyScanlineFunc copyScanline = CopyScanlineDefault,
@@ -337,7 +317,7 @@ protected:
 
     bool createTextureFromManager(HAL* phal, TextureManager* tmanager);
 
-    bool mapTextureRT(bool readOnly, bool forceRemap = false);
+    bool mapTextureRT(bool readOnly);
 
     bool ensureGPURenderable();
 
@@ -345,25 +325,11 @@ protected:
     void updateRenderTargetRT();
     void updateStagingTargetRT();
 
-    void internalMapAndFlush(bool needMap = true);
-    void internalUnmap();
-
-    // Applies our queue to the 'other' image, which is typically a command source.
-    bool mergeQueueWith(Image* other);
-
     template<class C>
     void addCommand(const C& cmd);
 
     ImageData& getMappedData();
-    bool  isMapped() const               
-    { 
-        return (AtomicOps<unsigned>::Load_Acquire(&DrawableImageState) & (DIState_Mapped|DIState_MappedRead)) != 0; 
-    }
-    bool  isMappedWithEmptyQueue() const 
-    { 
-        return (AtomicOps<unsigned>::Load_Acquire(&DrawableImageState) & 
-            (DIState_Mapped|DIState_CmdPending)) == DIState_Mapped; 
-    }
+    bool isMapped() const;
 
     void addToCPUModifiedList();
     void addToGPUModifiedListRT();
@@ -371,6 +337,8 @@ protected:
     bool isRenderableRT() const { return pRT != 0; }
     bool ensureRenderableRT();
     void initialize(ImageFormat format, const ImageSize &size, DrawableImageContext* dicontext);
+
+    void setViewProj3DHelper( TreeNode* subtree, TreeRoot* root );
 
 private:
 

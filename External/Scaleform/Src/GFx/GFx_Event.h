@@ -23,6 +23,7 @@ otherwise accompanies this software in either electronic or hard copy form.
 #include "Kernel/SF_Stats.h"
 #include "Kernel/SF_Alg.h"
 #include "Kernel/SF_KeyCodes.h"
+#include "Kernel/SF_String.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -37,6 +38,8 @@ class CharEvent;
 class AppLifecycleEvent;
 class KeyboardState;
 class EventId;
+class AccelerometerEvent;
+class GeolocationEvent;
 
 // Forward declarations.
 class InteractiveObject;
@@ -94,6 +97,14 @@ public:
         DoHideMouse,
         DoSetMouseCursor,
 
+        EnableClipping,
+        DisableClipping,
+
+		Accelerometer,
+		Geolocation,
+
+		Status,
+
         Char,
         IME
     };
@@ -109,7 +120,9 @@ public:
 	unsigned EventClassSize;
 #endif
 
-    Event(EventType eventType = Unknown)
+    // must be explicit ctor but for compatibility reasons commenting 
+    // 'explicit' out.
+    /*explicit*/ Event(EventType eventType = Unknown)
     {
         Type = eventType;
         SF_DEBUG_EXPR(EventClassSize = sizeof(Event));
@@ -189,6 +202,84 @@ public:
     }
 };
 
+
+class AccelerometerEvent : public Event 
+{
+public:
+	int		idAcc;
+    double	timestamp;
+	double	accelerationX, accelerationY, accelerationZ;
+
+    AccelerometerEvent() : Event()
+    {
+		idAcc = -1;
+        timestamp = accelerationX = accelerationY = accelerationZ = 0;
+        SF_DEBUG_EXPR(EventClassSize = sizeof(AccelerometerEvent));
+    }
+
+    AccelerometerEvent(EventType evtType, int _idAcc, double _timestamp, double _accelerationX, double _accelerationY, double _accelerationZ) 
+		: Event(evtType)
+    {
+		idAcc = _idAcc;
+		timestamp = _timestamp;
+        accelerationX = _accelerationX;
+        accelerationY = _accelerationY;
+        accelerationZ = _accelerationZ;
+        SF_DEBUG_EXPR(EventClassSize = sizeof(AccelerometerEvent));
+    }
+};
+
+
+class GeolocationEvent : public Event 
+{
+public:
+	int idGeo;
+	double latitude, longitude, altitude;
+	double hAccuracy, vAccuracy, speed, heading, timestamp;
+
+    GeolocationEvent() : Event()
+    {
+		idGeo = -1;
+        latitude = longitude = altitude = hAccuracy = vAccuracy = speed = heading = timestamp = 0;
+        SF_DEBUG_EXPR(EventClassSize = sizeof(GeolocationEvent));
+    }
+
+    GeolocationEvent(EventType evtType, int _idGeo, double _latitude, double _longitude, double _altitude, double _hAccuracy, double _vAccuracy, double _speed, double _heading, double _timestamp) 
+		: Event(evtType)
+    {
+		idGeo = _idGeo;
+		latitude = _latitude;
+		longitude = _longitude;
+		altitude = _altitude;
+		hAccuracy = _hAccuracy;
+		vAccuracy = _vAccuracy;
+		speed = _speed;
+		heading = _heading;
+		timestamp = _timestamp;
+        SF_DEBUG_EXPR(EventClassSize = sizeof(GeolocationEvent));
+    }
+};
+
+
+class StatusEvent : public Event 
+{
+public:
+    String*	code;
+	String*	level;
+	String*	extensionId;
+	String*	contextId;
+
+    StatusEvent(EventType evtType, String* _code, String* _level, String* _extensionId, String* _contextId) 
+		: Event(evtType)
+    {
+		code = _code;
+		level = _level;
+		extensionId = _extensionId;
+		contextId = _contextId;
+        SF_DEBUG_EXPR(EventClassSize = sizeof(StatusEvent));
+    }
+};
+
 class GestureEvent : public Event
 {
 public:
@@ -251,7 +342,10 @@ public:
         Unknown
     } Orientation;
 
-    OrientationEvent(OrientationType t = Default) : Event(OrientationChanged), Orientation(t) {}
+    OrientationEvent(OrientationType t = Default) : Event(OrientationChanged), Orientation(t)
+    {
+        SF_DEBUG_EXPR(EventClassSize = sizeof(OrientationEvent));
+    }
 };
 
 class AppLifecycleEvent : public Event
@@ -269,6 +363,12 @@ public:
 	}
 };
 
+class ClippingEvent : public Event
+{
+public:
+    ClippingEvent() : Event(Event::EnableClipping) {}
+    ClippingEvent(EventType eventType) : Event(eventType) {}
+};
 
 class MouseCursorEvent : public Event
 {
@@ -563,15 +663,19 @@ public:
     // State of special keys
     KeyModifiers KeysStates[GFX_MAX_KEYBOARD_SUPPORTED];
 
-    SetFocusEvent(KeyModifiers specialKeysState) : 
-      Event(SetFocus, specialKeysState) {}
+    SetFocusEvent() : Event(SetFocus) {}
 
-      SetFocusEvent(unsigned numKeyboards, KeyModifiers* specialKeysStates) 
-          : Event(SetFocus) 
-      {
-          for (unsigned i = 0, n = Alg::Min(unsigned(GFX_MAX_KEYBOARD_SUPPORTED), numKeyboards); i < n; ++i)
-              KeysStates[i] = specialKeysStates[i];
-      }
+    SetFocusEvent(KeyModifiers specialKeysState) : 
+      Event(SetFocus, specialKeysState) { KeysStates[0] = specialKeysState; }
+
+    SetFocusEvent(unsigned numKeyboards, KeyModifiers* specialKeysStates) 
+      : Event(SetFocus) 
+    {
+        if (numKeyboards > 0)
+            Modifiers = specialKeysStates[0];
+        for (unsigned i = 0, n = Alg::Min(unsigned(GFX_MAX_KEYBOARD_SUPPORTED), numKeyboards); i < n; ++i)
+            KeysStates[i] = specialKeysStates[i];
+    }
 };
 
 }} // Scaleform::GFx

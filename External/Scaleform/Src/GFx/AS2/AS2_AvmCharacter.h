@@ -295,6 +295,7 @@ public:
         M_topmostLevel,
         M_noAdvance,
         M_focusGroupMask,
+        M_bidirectionalTextEnabled,
 
         // Dynamic Text
         M_autoFit,
@@ -453,11 +454,11 @@ public:
     // These are used for finding bounds, width and height.
     virtual RectF  GetBounds(const Matrix &transform) const
     {       
-        return transform.EncloseTransform(pDef->GetBoundsLocal());
+        return transform.EncloseTransform(pDef->GetBoundsLocal(GetRatio()));
     }   
     virtual RectF  GetRectBounds(const Matrix &transform) const
     {       
-        return transform.EncloseTransform(pDef->GetRectBoundsLocal());
+        return transform.EncloseTransform(pDef->GetRectBoundsLocal(GetRatio()));
     }   
 
     virtual bool    PointTestLocal(const Render::PointF &pt, UInt8 hitTestMask = 0) const;

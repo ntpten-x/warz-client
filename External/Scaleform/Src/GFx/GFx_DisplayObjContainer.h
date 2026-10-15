@@ -24,6 +24,11 @@ namespace Scaleform { namespace GFx {
 class AvmDisplayObjContainerBase : public AvmInteractiveObjBase 
 {
 public:
+    typedef DisplayObjectBase::TopMostDescr TopMostDescr;
+    typedef DisplayObjectBase::TopMostResult TopMostResult;
+
+    virtual TopMostResult GetTopMostEntity(const Render::PointF &localPt, TopMostDescr* pdescr,
+                                           const ArrayPOD<UByte>& hitTest) =0;
     virtual void    FillTabableArray(InteractiveObject::FillTabableParams* params) =0;
 };
 
@@ -54,6 +59,8 @@ public:
         return mDisplayList.GetBounds(t); 
     }
     virtual CharacterDef*   GetCharacterDef() const { return NULL; }
+    virtual void            PropagateScale9GridExists();
+    virtual void            SetScale9Grid(const RectF& rect);
 
     // Returns character bounds excluding stroke
     virtual RectF           GetRectBounds(const Matrix &t) const 
@@ -144,6 +151,7 @@ public:
     DisplayList&        GetDisplayList()        { return mDisplayList; }
     const DisplayList&  GetDisplayList() const  { return mDisplayList; }
     //virtual void        InsertBranchToPlayList(InteractiveObject* pbegin, InteractiveObject* pend);
+    void                GetChildDescTree(AmpMovieObjectDesc* parent, MemoryHeap* heap) const;
 
     void                FillTabableArray(InteractiveObject::FillTabableParams* params);
 
@@ -154,7 +162,7 @@ public:
 #endif
 
     void                CalcDisplayListHitTestMaskArray(
-        Array<UByte> *phitTest, const Render::PointF &p, bool testShape) const;
+        ArrayPOD<UByte> *phitTest, const Render::PointF &p, bool testShape) const;
 
     MovieDefRootNode*   FindRootNode() const;
 

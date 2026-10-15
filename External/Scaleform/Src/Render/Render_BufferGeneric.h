@@ -50,6 +50,14 @@ enum RBCacheListType
     RBCL_ItemCount
 };
 
+// RenderBuffer DSSizeMode; used to indicate depth-stencil size preference.
+enum DSSizeMode
+{
+    DSSM_None,          // Use the default depth stencil size mode
+    DSSM_Exact,         // Depth stencil requests must be identical to potential matches
+    DSSM_EqualOrBigger  // Depth stencil requests must be identical to color sizes
+};
+
 
 class RenderTarget;
 class DepthStencilBuffer;
@@ -75,7 +83,7 @@ public:
     inline RenderTarget*       GetRenderTarget() const;
     inline DepthStencilBuffer* GetDepthStencilBuffer() const;
 
-    bool Match(const ImageSize& size, bool exact, RenderBufferType type, ImageFormat format) const;
+    bool Match(const ImageSize& size, DSSizeMode sizeMode, RenderBufferType type, ImageFormat format) const;
 };
 
 
@@ -98,7 +106,7 @@ public:
         ReuseLimit_ScreenSize  = 0xFFFFFFFF
     };
 
-    RenderBufferManager(bool requireExactDepthStencil = false,
+    RenderBufferManager(DSSizeMode depthStencilSizeMode = DSSM_None,
                         UPInt memReuseLimit = ReuseLimit_ScreenSize,
                         UPInt memAbsoluteLimit = 0);
 
@@ -112,6 +120,7 @@ public:
 
     virtual void    Reset();
 
+    virtual void    DumpUsage();
 
     virtual Render::RenderTarget* CreateRenderTarget(const ImageSize& size, RenderBufferType type,
                                                      ImageFormat format, Texture* texture = 0);
@@ -120,7 +129,7 @@ public:
     //  - call TextureManager to allocate texture
     virtual Render::RenderTarget* CreateTempRenderTarget(const ImageSize& size);
 
-    virtual Render::DepthStencilBuffer* CreateDepthStencilBuffer(const ImageSize& size);
+    virtual Render::DepthStencilBuffer* CreateDepthStencilBuffer(const ImageSize& size, bool temporary=true);
 
 
 protected:
@@ -174,7 +183,7 @@ protected:
     UPInt               AllocSize; // Currently allocated size
     ImageFormat         DefImageFormat;
     bool                RequirePow2;
-    bool                RequireExactDepthStencil;   // If true, allocated depth stencil buffers will match requested dimensions exactly.
+    DSSizeMode          DepthStencilSizeMode;
 
     List<CacheData> BufferCache[RBCL_ItemCount];
 };
@@ -199,7 +208,8 @@ public:
 
     virtual Texture*    GetTexture() const  { return pTexture; }
     virtual RenderTargetStatus GetStatus() const { return RTStatus; }
-    virtual void        SetInUse(bool inUse);
+    void                SetInUse(bool inUse) { SetInUse(inUse ? RTUse_InUse : RTUse_Unused); }
+    virtual void        SetInUse(RenderTargetUse inUse);
 
     virtual void AddRef();
     virtual void Release();
@@ -230,8 +240,8 @@ class DepthStencilBuffer : public Render::DepthStencilBuffer, public CacheData
 {
     friend class RenderBufferManager;
 public:
-    DepthStencilBuffer(RenderBufferManager* manager, const ImageSize& bufferSize)
-        : Render::DepthStencilBuffer(manager, bufferSize), CacheData(getThis())
+    DepthStencilBuffer(RenderBufferManager* manager, const ImageSize& bufferSize, bool temporary=true)
+        : Render::DepthStencilBuffer(manager, bufferSize, temporary), CacheData(getThis())
     { }
 
     DepthStencilBuffer* getThis() { return this; }

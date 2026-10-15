@@ -17,9 +17,11 @@ otherwise accompanies this software in either electronic or hard copy form.
 #define INC_SF_Render_GL_HAL_H
 
 #include "Render/Render_HAL.h"
-#include "GL_MeshCache.h"
-#include "GL_Shader.h"
-#include "GL_Texture.h"
+#include "Render/GL/GL_MeshCache.h"
+#include "Render/GL/GL_Shader.h"
+#include "Render/GL/GL_Texture.h"
+#include "Render/GL/GL_Sync.h"
+#include "Render/Render_ShaderHAL.h"    // Must be included after platform specific shader includes.
 
 namespace Scaleform { namespace Render { namespace GL {
 
@@ -29,7 +31,26 @@ enum HALConfigFlags
 {
     // Only compile shaders when they are actually used. This can reduce startup-times,
     // however, compiling shaders dynamically can cause performance spikes during playback.
-    HALConfig_DynamicShaderCompile  = 0x00000001,
+    // Note that if binary shaders are available in the OpenGL/ES implementation and not explicitly
+    // disabled by using HALConfig_DisableBinaryShaders, this flag is ignored, and all shaders are
+    // loaded at startup. They subsequently will be loaded from disk, which is much faster.
+    HALConfig_DynamicShaderCompile      = 0x00000001,
+
+    // Disables the use of binary shaders (loading and saving), even if the OpenGL/ES implementation
+    // has the required support for it. 
+    HALConfig_DisableBinaryShaders      = 0x00000002,
+
+    // Instead of storing all binary shaders in a single file, which is only saved on shutdown, save each shader
+    // in an individual file. This enables saving of binary shaders when they are dynamically initialized.
+    HALConfig_MultipleShaderCacheFiles  = 0x00000004,
+
+    // Disables the usage of separable shader program pipelines (eg. GL_EXT_separate_shader_objects),
+    // even if the OpenGL/ES implementation has the required support for it.
+    HALConfig_DisableShaderPipelines    = 0x00000008,
+
+	// Enables debugging output via the glDebugMessageCallback. This can be useful to get driver specific
+	// error messages. Note that a GL context with the debug-bit enabled is required for these to output.
+	HALConfig_DebugMessages				= 0x00000010,
 };
 
 // GL::HALInitParams provides OpenGL-specific rendering initialization
@@ -38,17 +59,18 @@ enum HALConfigFlags
 struct HALInitParams : public Render::HALInitParams
 {
     String BinaryShaderPath;
+    bool NoVAO;
+    bool NoInstancing;
 
-    HALInitParams(
-#ifdef SF_GL_BINARY_SHADERS
+    HALInitParams(UInt32 halConfigFlags = 0,
+                  ThreadId renderThreadId = ThreadId(),
                   const String& binaryShaderPath = String(),
-#endif
-                  UInt32 halConfigFlags = 0,
-                  ThreadId renderThreadId = ThreadId())
-        : Render::HALInitParams(0, halConfigFlags, renderThreadId)
-#ifdef SF_GL_BINARY_SHADERS
-        , BinaryShaderPath(binaryShaderPath)
-#endif
+                  bool noVao = false,
+                  bool noInstancing = false) : 
+        Render::HALInitParams(0, halConfigFlags, renderThreadId),
+        BinaryShaderPath(binaryShaderPath),
+        NoVAO(noVao),
+        NoInstancing(noInstancing)
     { }
 
     // GL::TextureManager accessors for correct type.
@@ -60,65 +82,70 @@ enum CapFlags
 {
     Cap_Align           = MVF_Align,
 
-    Cap_NoBatching      = 0x010,
+    Cap_NoBatching      = 0x0010,   // Not capable of doing batching.
 
-    // Caps for buffers in mesh cache. Static buffers are still used even if none of these caps are set.
-    Cap_MapBuffer       = 0x020,
-    Cap_BufferUpdate    = 0x040,
-    Cap_UseMeshBuffers  = Cap_MapBuffer | Cap_BufferUpdate,
+    // Caps for buffers in mesh cache. Client buffers will be used if none of these caps are set (eg. Caps & Cap_UseMeshBuffer == 0).
+    Cap_MapBuffer       = 0x0020,    // glMapBuffer is available.
+    Cap_MapBufferRange  = 0x0040,    // glMapBufferRange is available.
+    Cap_BufferUpdate    = 0x0080,	 // glBufferData/glBufferSubData is available.
+    Cap_UseMeshBuffers  = Cap_MapBuffer | Cap_MapBufferRange | Cap_BufferUpdate,
 
     // Caps for shaders. 
-    Cap_NoDynamicLoops  = 0x080, // profile does not support dynamic looping.
-    Cap_BinaryShaders   = 0x100, // profile supports loading binary shaders (GLES 2.0)
+    Cap_NoDynamicLoops  = 0x0100,    // Profile does not support dynamic looping.
+    Cap_BinaryShaders   = 0x0200,    // Profile supports loading binary shaders
+    Cap_NoDerivatives   = 0x0400,    // Profile does not support use of derivatives in fragment shaders (dFdx/dFdy).
 
     // Caps for drawing.
-    Cap_Instancing      = 0x200, // profile supports instancing (DrawArraysInstanced).
-
+    Cap_Instancing      = 0x0800,    // Profile supports instancing (DrawArraysInstanced, and GLSL1.4+).
+    
+    Cap_NoVAO           = 0x1000,    // Not capable of using VAOs
+    
+    Cap_Sync            = 0x2000,    // Profile supports fence objects (GL_ARB_sync or GL_APPLE_sync).
+    
     // GL_MAX_VERTEX_UNIFORM_VECTORS, or a different value on certain devices
     Cap_MaxUniforms       = 0xffff0000,
     Cap_MaxUniforms_Shift = 16,
-
-    Caps_Standard         = Cap_MapBuffer
 };
 
 class MatrixState : public Render::MatrixState
 {
 public:
     MatrixState(HAL* phal) : Render::MatrixState((Render::HAL*)phal)
-    { }
+    {
+        // GL's full viewport quad is different from other platforms (upside down).
+        FullViewportMVP = Matrix2F::Scaling(2,2) * Matrix2F::Translation(-0.5f, -0.5f);
+    }
 
     MatrixState() : Render::MatrixState()
-    { }
+    {
+        FullViewportMVP = Matrix2F::Scaling(2,2) * Matrix2F::Translation(-0.5f, -0.5f);
+    }
 
 protected:
     virtual void        recalculateUVPOC() const;
 };
 
-class HAL : public Render::HAL
+class HAL : public Render::ShaderHAL<ShaderManager, ShaderInterface>
 #ifdef SF_GL_RUNTIME_LINK
     , public GL::Extensions
 #endif
 {
+    typedef Render::ShaderHAL<ShaderManager, ShaderInterface> BaseHAL;
+
 public:
-    bool                MultiBitStencil;
-    int                 EnabledVertexArrays;
-    bool                FilterVertexBufferSet;
-    int                 BlendEnable;
+    int                  EnabledVertexArrays;
+    bool                 FilterVertexBufferSet;
+    int                  BlendEnable;
 
     MeshCache            Cache;
+    RenderSync               RSync;
 
-    ShaderManager            SManager;
-    ShaderObject             StaticShaders[UniqueShaderCombinations];
-    HashLH<void*, GLuint>    CompiledShaderHash;                        // Hash of source shader text to compiled shader index.
-
-    ShaderInterface          ShaderData;
-    String                   BinaryShaderPath;
     Ptr<TextureManager>      pTextureManager;
     
     // Previous batching mode
     PrimitiveBatch::BatchType PrevBatchType;
 
-    unsigned                Caps;
+    unsigned&                Caps;
 
     // Self-accessor used to avoid constructor warning.
     HAL*      GetHAL() { return this; }
@@ -126,7 +153,7 @@ public:
 public:    
     
 
-    HAL(ThreadCommandQueue* commandQueue = 0);
+    HAL(ThreadCommandQueue* commandQueue);
     virtual ~HAL();   
 
     // *** HAL Initialization and Shutdown
@@ -145,6 +172,7 @@ public:
     // *** Rendering
 
     virtual bool        BeginFrame();
+    virtual void        FinishFrame();
     virtual bool        BeginScene();
     virtual bool        EndScene();
 
@@ -152,37 +180,30 @@ public:
     // Fill the background color, and set up default transforms, etc.
     virtual void        beginDisplay(BeginDisplayData* data);
 
-    void                CalcHWViewMatrix(unsigned VPFlags, Matrix* pmatrix, const Rect<int>& viewRect,
-                                         int dx, int dy);
-
     // Updates HW Viewport and ViewportMatrix based on the current
     // values of VP, ViewRect and ViewportValid.
     virtual void        updateViewport();
 
 
-    // Creates / Destroys mesh and DP data 
-
-    virtual PrimitiveFill*  CreatePrimitiveFill(const PrimitiveFillData& data);    
-
-    virtual void        DrawProcessedPrimitive(Primitive* pprimitive,
-                                               PrimitiveBatch* pstart, PrimitiveBatch *pend);
-
-    virtual void        DrawProcessedComplexMeshes(ComplexMesh* p,
-                                                   const StrideArray<HMatrix>& matrices);
-    
     // *** Mask Support
-    virtual void    PushMask_BeginSubmit(MaskPrimitive* primitive);    
-    virtual void    EndMaskSubmit();
-    virtual void    PopMask();
+    virtual void        applyDepthStencilMode(DepthStencilMode mode, unsigned stencilRef);
+    virtual bool        checkDepthStencilBufferCaps();
 
-    void    drawMaskClearRectangles(const HMatrix* matrices, UPInt count);
-    virtual void    clearSolidRectangle(const Rect<int>& r, Color color);
+    // *** Rasterization
+    virtual bool        IsRasterModeSupported(RasterModeType mode) const;
+    virtual void        applyRasterModeImpl(RasterModeType mode);
 
-    bool SetVertexArray(const VertexFormat* pFormat, GLuint buffer, UByte* vertexOffset);
+    virtual void    clearSolidRectangle(const Rect<int>& r, Color color, bool blend);
+
+    virtual UPInt setVertexArray(PrimitiveBatch* pbatch, Render::MeshCacheItem* pmesh);
+    virtual UPInt setVertexArray(const ComplexMesh::FillRecord& fr, unsigned formatIndex, Render::MeshCacheItem* pmesh);
+    UPInt         setVertexArray(const VertexFormat* pFormat, Render::MeshCacheItem* pmesh, UPInt vboffset);
+    void          setVertexArray(const VertexFormat* pFormat, GLuint buffer, GLuint vao);
 
 
     // *** BlendMode
     virtual void       applyBlendModeImpl(BlendMode mode, bool sourceAc = false, bool forceAc = false);
+    virtual void       applyBlendModeEnableImpl(bool enabled);
 
 
 
@@ -195,60 +216,55 @@ public:
     virtual RenderTarget*   CreateRenderTarget(Render::Texture* texture, bool needsStencil);
     virtual RenderTarget*   CreateTempRenderTarget(const ImageSize& size, bool needsStencil);
     virtual bool            SetRenderTarget(RenderTarget* target, bool setState = 1);
-    virtual void            PushRenderTarget(const RectF& frameRect, RenderTarget* prt, unsigned flags=0);
+    virtual void            PushRenderTarget(const RectF& frameRect, RenderTarget* prt, unsigned flags=0, Color clearColor=0);
     virtual void            PopRenderTarget(unsigned flags = 0);
 
     virtual bool            createDefaultRenderBuffer();
 
     // *** Filters
-    virtual void          PushFilters(FilterPrimitive* primitive);
-    virtual void          drawUncachedFilter(const FilterStackEntry& e);
-    virtual void          drawCachedFilter(FilterPrimitive* primitive);
-
-    // *** DrawableImage
-    virtual void          DrawableCxform( Render::Texture** tex, const Matrix2F* texgen, const Cxform* cx);
-    virtual void          DrawableCompare( Render::Texture** tex, const Matrix2F* texgen );
-    virtual void          DrawableCopyChannel( Render::Texture** tex, const Matrix2F* texgen, const Matrix4F* cxmul );
-    virtual void          DrawableMerge( Render::Texture** tex, const Matrix2F* texgen, const Matrix4F* cxmul );
-    virtual void          DrawableCopyPixels( Render::Texture** tex, const Matrix2F* texgen, const Matrix2F& mvp, 
-                                              bool mergeAlpha, bool destAlpha );
-    virtual void          DrawablePaletteMap( Render::Texture** tex, const Matrix2F* texgen, const Matrix2F& mvp, 
-                                              unsigned channelMask, const UInt32* values);
-    virtual void          DrawableThreshold(  Render::Texture** tex, const Matrix2F* texgen, const Matrix2F& mvp, 
-                                              DrawableImage::OperationType op, UInt32 threshold, UInt32 color, 
-                                              UInt32 mask, bool copySource);
-    virtual void          DrawableCopyback( Render::Texture* tex, const Matrix2F& mvp, const Matrix2F& texgen );
+    virtual void            drawUncachedFilter(const FilterStackEntry& e);
+    virtual void            drawCachedFilter(FilterPrimitive* primitive);
+    virtual void            drawFilter(const Matrix2F& mvp, const Cxform & cx, const Filter* filter, Ptr<RenderTarget> * targets, 
+                                       unsigned* shaders, unsigned pass, unsigned passCount, const VertexFormat* pvf, 
+                                       BlurFilterState& leBlur);
 
     virtual class MeshCache&       GetMeshCache()        { return Cache; }
+    virtual Render::RenderSync*    GetRenderSync();
 
     virtual float         GetViewportScaling() const { return 1.0f; }
 
     virtual void    MapVertexFormat(PrimitiveFillType fill, const VertexFormat* sourceFormat,
                                     const VertexFormat** single,
-                                    const VertexFormat** batch, const VertexFormat** instanced, unsigned meshType = 0);
+                                    const VertexFormat** batch, const VertexFormat** instanced, 
+                                    unsigned meshType = MeshCacheItem::Mesh_Regular);
 
-    const ShaderObject* GetStaticShader(FragShaderDesc::ShaderType shaderType);
+    const ShaderObject* GetStaticShader(ShaderDesc::ShaderType shaderType);
 
-    void     DrawFilter(const Matrix2F& mvp, const Cxform & cx, const Filter* filter, Ptr<RenderTarget> * targets, 
-                        unsigned* shaders, unsigned pass, unsigned passCount, const VertexFormat* pvf, 
-                        BlurFilterState& leBlur, bool isLastPass);
+    // Check whether the given extension exists in the current profile.
+    bool                CheckExtension(const char *name);
+
+    // Check whether the input major/minor version pair is greater or equal to the current profile version.
+    bool                CheckGLVersion(unsigned reqMajor, unsigned reqMinor);
+
+    // Returns whether the HAL should use Vertex Array Objects.
+    bool                ShouldUseVAOs();
 
 
 protected:
     ImageSize           getFboInfo(GLint fbo, GLint& currentFBO, bool useCurrent);
-
-    // Initializes all shaders, unless HALConfig_DynamicShaderCompile is set, or force is true.
-    // If compilation of any shader fails, returns false, in which case the Prog member is set to zero.
-    bool                initializeShaders(bool force = false);
+    DepthStencilBuffer* createCompatibleDepthStencil(const ImageSize& size, bool temporary);
 
     // Returns whether the profile can render any of the filters contained in the FilterPrimitive.
     // If a profile does not support dynamic looping (Cap_NoDynamicLoops), no blur/shadow type filters
     // can be rendered, in which case this may return false, however, ColorMatrix filters can still be rendered.
     bool                shouldRenderFilters(const FilterPrimitive* prim) const;
 
-    void                drawPrimitive(unsigned indexCount, unsigned meshCount);
-    void                drawIndexedPrimitive( unsigned indexCount, unsigned meshCount, UByte* indexPtr);
-    void                drawIndexedInstanced( unsigned indexCount, unsigned meshCount, UByte* indexPtr);
+    virtual void        setBatchUnitSquareVertexStream();
+    virtual void        drawPrimitive(unsigned indexCount, unsigned meshCount);
+    virtual void        drawIndexedPrimitive(unsigned indexCount, unsigned vertexCount, unsigned meshCount, UPInt indexPtr, UPInt vertexOffset );
+    virtual void        drawIndexedInstanced(unsigned indexCount, unsigned vertexCount, unsigned meshCount, UPInt indexPtr, UPInt vertexOffset );
+
+    virtual void        initMatrices();
 
     // Simply sets a quad vertex buffer and draws.
     virtual void        drawScreenQuad();
@@ -256,10 +272,22 @@ protected:
     // *** Events
     virtual Render::RenderEvent& GetEvent(EventType eventType);
 
-    // Cached mappings of VertexXY16iAlpha vertex format.
-    VertexFormat*       MappedXY16iUVTexture[PrimitiveBatch::DP_DrawableCount];
-    VertexFormat*       MappedXY16iAlphaTexture[PrimitiveBatch::DP_DrawableCount];
-    VertexFormat*       MappedXY16iAlphaSolid[PrimitiveBatch::DP_DrawableCount];
+    // Cached versions read from GL_VERSION string.
+    unsigned            MajorVersion, MinorVersion;
+    // Cached GL_EXTENSIONS string.
+    String              Extensions;
+    
+    // Tracks whether a compatible depth stencil format has been created.
+    bool                DeterminedDepthStencilFormat;
+};
+
+// Use this HAL if you want to use profile modes.
+class ProfilerHAL : public Render::ProfilerHAL<HAL>
+{
+public:
+    ProfilerHAL(ThreadCommandQueue* commandQueue) : Render::ProfilerHAL<HAL>(commandQueue)
+    {
+    }
 };
 
 //--------------------------------------------------------------------
@@ -296,6 +324,24 @@ private:
     { }
 };
 
+// This function is used with the GL_ARB_debug_output extension. Use HALConfig_DebugMessages in the InitHALParams to activate.
+#if defined(SF_CC_GNU)
+void GL_APIENTRY DebugMessageCallback(unsigned source,
+                                   unsigned type,
+                                   unsigned id,
+                                   unsigned severity,
+                                   int length,
+                                   const GLchar* message,
+                                   const void* userParam);
+#else
+void GL_APIENTRY DebugMessageCallback(GLenum source,
+                                      GLenum type,
+                                      GLuint id,
+                                      GLenum severity,
+                                      GLsizei length,
+                                      const GLchar* message,
+                                      GLvoid* userParam);
+#endif
 
 }}} // Scaleform::Render::GL
 

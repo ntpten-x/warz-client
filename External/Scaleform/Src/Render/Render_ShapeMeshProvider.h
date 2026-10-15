@@ -42,12 +42,14 @@ public:
     TransformerWrapper(const TransformerType* tr) : Tr(tr) {}
     virtual void Transform(float* x, float* y) const { Tr->Transform(x, y); }
     virtual float GetScale() const { return Tr->GetScale(); }
+    virtual float GetXScale() const { return Tr->GetXScale(); }
+    virtual float GetYScale() const { return Tr->GetYScale(); }
 };
 
 
 
 //------------------------------------------------------------------------
-struct MorphShapeData : public RefCountBase<MorphShapeData, Stat_Default_Mem>
+struct MorphShapeData : public RefCountBase<MorphShapeData, StatRender_TreeCache_Mem>
 {
     typedef ArrayLH_POD<UByte> ContainerType;
 
@@ -92,12 +94,7 @@ public:
     {}
 
     ShapeMeshProvider(ShapeDataInterface* shape, ShapeDataInterface* shapeMorph = 0);
-
-
-    ~ShapeMeshProvider()
-    {
-        SF_AMP_CODE(clearStrokeCount();)
-    }
+    virtual ~ShapeMeshProvider();
 
     void AttachShape(ShapeDataInterface* shape, ShapeDataInterface* shapeMorph = 0);
 
@@ -110,7 +107,13 @@ public:
                                      StrokeGenerator* gen, const ToleranceParams* tol) const;
 
     virtual bool    HitTestShape(const Matrix2F& m, float x, float y, float morphRatio,
-                                 StrokeGenerator* gen, const ToleranceParams* tol) const;
+        StrokeGenerator* gen, const ToleranceParams* tol) const
+    {
+        return HitTestShape(m, x, y, morphRatio, gen, tol, NULL);
+    }
+
+    bool            HitTestShape(const Matrix2F& m, float x, float y, float morphRatio,
+                                 StrokeGenerator* gen, const ToleranceParams* tol, Scale9GridInfo* s9g) const;
 
     virtual unsigned    GetLayerCount() const { return (unsigned)DrawLayers.GetSize(); }
     virtual unsigned    GetFillCount(unsigned drawLayer, unsigned meshGenFlags) const;

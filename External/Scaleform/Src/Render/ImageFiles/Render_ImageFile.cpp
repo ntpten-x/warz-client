@@ -45,22 +45,33 @@ bool ImageFileWriter::writeImage(File* file, const ImageFileWriter* writer,
     ImageData     idata;
     bool          needUnmap = false;
 
+    bool dataObtained = false;
     if (image->GetImageType() == Image::Type_RawImage)
-    {        
-        ((RawImage*)image->GetAsImage())->GetImageData(&idata);
+    {
+        RawImage* rawImage = (RawImage*)image->GetAsImage();
+        if (rawImage->hasData())
+        {
+            rawImage->GetImageData(&idata);
+            dataObtained = true;
+        }
     }
-
     else if (image->GetUse() & ImageUse_MapSimThread)
     {
         if (!image->Map(&idata))
+        {
             return false;
+        }
         needUnmap = true;
+        dataObtained = true;
     }
 
-    else
+    if (!dataObtained)
     {
         tempImage = *RawImage::Create(image->GetFormat(), 1, image->GetSize(), 0);
-        if (!tempImage) return false;
+        if (!tempImage) 
+        {
+            return false;
+        }
 
         tempImage->GetImageData(&idata);
         if (!image->Decode(&idata))
@@ -95,7 +106,20 @@ ImageFileHandlerRegistry::ImageFileHandlerRegistry(unsigned handlerCount, ...)
 
 void ImageFileHandlerRegistry::AddHandler(ImageFileHandler* handler)
 {
-    SF_ASSERT(handler);
+    SF_DEBUG_ASSERT(handler, "Can't add a NULL ImageFileHander.");
+    if (!handler)
+        return;
+
+    // Make sure that a handler for the current image type doesn't already exist. If it does, skip it.
+    for (unsigned i = 0; i < Handlers.GetSize(); ++i )
+    {
+        SF_DEBUG_WARNING1(Handlers[i]->GetFormat() == handler->GetFormat(), 
+            "Attempt to add multiple ImageFileHandler for the same format (ImageFileFormat=%d)", handler->GetFormat());
+        if (Handlers[i]->GetFormat() == handler->GetFormat())
+            return;
+    }
+
+    // Not a duplicate, add the handler.
     Handlers.PushBack(handler);
 }
 

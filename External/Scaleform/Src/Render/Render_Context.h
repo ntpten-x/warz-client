@@ -666,7 +666,7 @@ class EntryTable
     void            FreeEntryPage(EntryPage* ppage);
 
 public:
-    EntryTable(Context* context, MemoryHeap* heap) : pContext(context), pHeap(heap) { }
+    EntryTable(Context* context, MemoryHeap* heap) : pContext(context), pHeap(heap), pActiveSnapshot(0) { }
 
     void    SetActiveSnapshot(Snapshot* p) { pActiveSnapshot = p; }
 
@@ -791,6 +791,7 @@ public:
     void AddCaptureNotify(ContextCaptureNotify* notify);
     void RemoveCaptureNotify(ContextCaptureNotify* notify);
 
+    MemoryHeap* GetHeap() const { return pHeap; }
 
     // *** Render Thread API
 

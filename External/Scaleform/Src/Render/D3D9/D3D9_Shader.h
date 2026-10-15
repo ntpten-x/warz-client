@@ -30,7 +30,6 @@ struct VertexShader
 {
     const VertexShaderDesc*             pDesc;
     Ptr<IDirect3DVertexShader9>         pProg;
-    int                                 Uniforms[Uniform::SU_Count];
 
     VertexShader() : pDesc(0), pProg(0) {}
     ~VertexShader() { Shutdown(); }
@@ -43,11 +42,8 @@ struct FragShader
 {
     const FragShaderDesc*       pDesc;
     Ptr<IDirect3DPixelShader9>  pProg;
-    UPInt                       Offset;
-    int                         Uniforms[Uniform::SU_Count];
-    int                         TexParams[8];
 
-    FragShader() { pDesc = 0; pProg = 0; Offset = 0; }
+    FragShader() { pDesc = 0; pProg = 0; }
     ~FragShader() { Shutdown(); };
 
     bool Init(Render::HAL* phal, const FragShaderDesc* pd);
@@ -92,7 +88,7 @@ class ShaderInterface : public ShaderInterfaceBase<Uniform,ShaderPair>
 public:
     typedef const ShaderPair Shader;
 
-    ShaderInterface(HAL* phal): pHal(phal), pLastVS(0), pLastDecl(0), pLastFS(0) { }
+    ShaderInterface(Render::HAL* phal): pHal((HAL*)phal), pLastVS(0), pLastDecl(0), pLastFS(0) { }
 
     void                BeginScene()
     {
@@ -102,25 +98,30 @@ public:
     }
 
     const Shader&       GetCurrentShaders() const { return CurShaders; }
-    bool                SetStaticShader(VertexShaderDesc::ShaderType vshader, FragShaderDesc::ShaderType shader, const VertexFormat* pvf);
+    bool                SetStaticShader(ShaderDesc::ShaderType shader, const VertexFormat* pvf);
 
     void                SetTexture(Shader, unsigned var, Render::Texture* ptexture, ImageFillMode fm, unsigned index = 0);
 
     void                Finish(unsigned meshCount);
 };
 
-class ShaderManager : public StaticShaderManager<FragShaderDesc, VertexShaderDesc, Uniform, ShaderInterface, Texture>
+class ShaderManager : public StaticShaderManager<ShaderDesc, VertexShaderDesc, Uniform, ShaderInterface, Texture>
 {
+    friend class ShaderInterface;
 public:
-    typedef StaticShaderManager<FragShaderDesc, VertexShaderDesc, Uniform, ShaderInterface, Texture> Base;
+    typedef StaticShaderManager<ShaderDesc, VertexShaderDesc, Uniform, ShaderInterface, Texture> Base;
+    typedef Uniform UniformType;
+    typedef ShaderDesc ShaderDescType;
 
     ShaderManager(ProfileViews* prof) : 
         StaticShaderManager(prof), pDevice(0), 
-            InstancingSupport(false), DynamicLoopingSupport(false) { }
+            InstancingSupport(false), DynamicLoopingSupport(false),
+            ShaderModel(ShaderDesc::ShaderVersion_Default) { }
 
     // *** StaticShaderManager
-    bool    HasInstancingSupport() const;
-    bool    HasDynamicLoopingSupport() const;
+    virtual ShaderDesc::ShaderVersion  GetShaderVersion() const { return ShaderModel; }
+    bool                               HasInstancingSupport() const;
+    bool                               HasDynamicLoopingSupport() const;
 
     // D3D9 Specific.
 
@@ -130,10 +131,15 @@ public:
     void    BeginScene();
     void    EndScene();
 
+    static unsigned GetDrawableImageFlags() { return ShaderManager::CPF_HalfPixelOffset; }
+
 private:
-    Ptr<IDirect3DDevice9>   pDevice;
-    bool                    InstancingSupport;
-    bool                    DynamicLoopingSupport;
+    Ptr<IDirect3DDevice9>         pDevice;
+    FragShader                    StaticFShaders[FragShaderDesc::FSI_Count];
+    VertexShader                  StaticVShaders[VertexShaderDesc::VSI_Count];
+    bool                          InstancingSupport;
+    bool                          DynamicLoopingSupport;
+    ShaderDesc::ShaderVersion     ShaderModel;
 };
 
 }}}

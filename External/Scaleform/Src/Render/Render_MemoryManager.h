@@ -29,14 +29,14 @@ namespace Scaleform { namespace Render {
 
 enum MemoryType
 {
-    Memory_Normal            = 0,
-    Memory_Uncached          = 0x0100,
+    Memory_Normal               = 0,
+    Memory_Uncached             = 0x0100,
 
-    Memory_X360_Physical     = 0x1000,
-    Memory_X360_EDRAM        = 0x1001,
+    Memory_X360_Physical        = 0x1000,
+    Memory_X360_EDRAM           = 0x1001,
 
-    Memory_PS3_MainVideo     = 0x2000,
-    Memory_PS3_RSX           = 0x2002,
+    Memory_PS3_MainVideo        = 0x2000,
+    Memory_PS3_RSX              = 0x2002,
 
     Memory_PSVita_Main          = 0x3000,
     Memory_PSVita_MainUncached  = 0x3100,
@@ -46,11 +46,27 @@ enum MemoryType
     Memory_PSVita_Fragment      = 0x3022,
     Memory_PSVita_Shader        = 0x3032,
 
-    Memory_3DS_Device        = 0x4000,
-    Memory_3DS_VideoA        = 0x4001,
-    Memory_3DS_VideoB        = 0x4002,
+    Memory_3DS_Device           = 0x4000,
+    Memory_3DS_VideoA           = 0x4001,
+    Memory_3DS_VideoB           = 0x4002,
 
-    Memory_Wii_MEM1          = 0x5000,
+    Memory_Wii_MEM1             = 0x5000,
+
+    Memory_Orbis_Start          = 0x6000,
+
+    Memory_Orbis_WB_ONION_VOLATILE = Memory_Orbis_Start,    // Volatile/Nonvolatile are for 0.915 and below.
+    Memory_Orbis_WB_ONION_NONVOLATILE,
+    Memory_Orbis_WC_GARLIC_VOLATILE,
+    Memory_Orbis_WC_GARLIC_NONVOLATILE,
+    Memory_Orbis_WT_ONION_VOLATILE,
+    Memory_Orbis_WT_ONION_NONVOLATILE,
+    Memory_Orbis_WP_ONION_VOLATILE,
+    Memory_Orbis_WP_ONION_NONVOLATILE,
+    Memory_Orbis_UC_GARLIC_VOLATILE,
+    Memory_Orbis_UC_GARLIC_NONVOLATILE,
+
+    Memory_Orbis_WB_ONION,                                     // For 0.920 and above.
+    Memory_Orbis_WC_GARLIC,
 };
 
 // ***** MemoryManager

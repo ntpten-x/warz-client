@@ -34,12 +34,14 @@ class ShapeDataInterface;
 class GlyphShape;
 struct ShapePosInfo;
 
+// see FT_Vector in ftimage.h
 struct FTVector
 {
-    SInt32 x;
-    SInt32 y;
+    long x; // must be same type as FT_Pos
+    long y;
 };
 
+// see FT_Outline in ftimage.h
 struct  FTOutline
 {
     SInt16      NContours;      // number of contours in glyph        
@@ -79,12 +81,12 @@ private:
     {
         return float((int)v >> 6);
     }
-    static inline Render::CoordType SF_STDCALL FtToTwips(int v)
+    static inline Render::CoordType SF_STDCALL FtToTwips(long v)
     {
         return float((v * 20) >> 6);
     }
 
-    static inline Render::CoordType SF_STDCALL FtToS1024(int v)
+    static inline Render::CoordType SF_STDCALL FtToS1024(long v)
     {
         return float(v >> 6);
     }

@@ -154,13 +154,25 @@ public:
     // This struct will not be allocated (NULL) for 2D objects and 
     // 3D objects which do not override their parents perspective settings.
     // struct members can be set to 0 to indicate that the particular member is not used.
+	// except in the case of ProjectionCenter, which should be set to NaN (0,0 is a valid value).
     struct PerspectiveDataType : public NewOverrideBase<StatMV_MovieClip_Mem>
     {
         Double                  FieldOfView;	    // 3D perspective field of view in degrees
         Double                  FocalLength;		// 3D perspective focal length, in TWIPS
         PointF				    ProjectionCenter;	// 3D center of projection (vanishing point) in stage coord TWIPS
         Matrix3F                ViewMatrix3D;       // This is the ViewMatrix3D without the viewport adjustment (for Flash hit test).
-        PerspectiveDataType() : FieldOfView(0), FocalLength(0), ProjectionCenter(0,0) { }
+        PerspectiveDataType() : FieldOfView(0), FocalLength(0)
+        {
+            ProjectionCenter.x = (float)NumberUtil::NaN();
+            ProjectionCenter.y = (float)NumberUtil::NaN();
+        }
+
+        // Returns whether the the View and Perspective matrices should be calculated from the FOV/FL, or
+        // whether the values set using the DAPI (SetViewMatrix3D/SetProjectionMatrix3D) should be used.
+        bool UpdateViewAndPerspectiveFromData() const
+        {
+            return FieldOfView != 0 || FocalLength != 0;
+        }
     };
 
 protected:
@@ -203,7 +215,7 @@ protected:
     // at appropriate position. Returns the detached render node.
     // 'newParent' node is used only for safety check, to avoid circular references. Can be NULL.
     Ptr<Render::TreeNode>  SetIndirectTransform(Render::TreeNode* newParent);
-    void                   RemoveIndirectTransform();
+    void                   RemoveIndirectTransform(bool readdToDisplayList=true);
 public:
 
     // Constructor
@@ -240,8 +252,10 @@ public:
     virtual void            SetMatrix3D(const Matrix3F& m);
     virtual bool            GetProjectionMatrix3D(Matrix4F *m, bool bInherit=false) const;
     virtual void            SetProjectionMatrix3D(const Matrix4F& m);
+    virtual void            ClearProjectionMatrix3D();
     virtual bool            GetViewMatrix3D(Matrix3F *m, bool bInherit=false) const;
     virtual void            SetViewMatrix3D(const Matrix3F& m);
+    virtual void            ClearViewMatrix3D();
     virtual void            UpdateViewAndPerspective();
     virtual void            UpdateTransform3D();
     virtual bool            Has3D() { return Is3D(); }          // checks object and descendants
@@ -265,6 +279,12 @@ public:
         (v) ? Flags |= Mask_Scale9GridExists : Flags &= (~Mask_Scale9GridExists); 
     }
     bool                    DoesScale9GridExist() const         { return (Flags & Mask_Scale9GridExists) != 0; }
+    virtual void            SetScale9Grid(const RectF& rect);
+    RectF                   GetScale9Grid() const;
+    bool                    HasScale9Grid() const { return !GetScale9Grid().IsEmpty(); }
+    virtual void            PropagateScale9GridExists() {}
+    Render::Scale9GridInfo* CreateScale9Grid() const;
+
     bool                    IsTopmostLevelFlagSet() const       { return (Flags & Mask_TopmostLevel) != 0; }
 
     // sets coordinate X, specified in pixels.
@@ -328,6 +348,9 @@ public:
     // in external logic.
     virtual void            SetAcceptAnimMoves(bool accept)     { SF_UNUSED(accept); SF_ASSERT(0); }
   
+    virtual bool            GetCacheAsBitmap() const;
+    virtual void            SetCacheAsBitmap(bool enable);
+
     virtual void            SetFilters(const FilterSet* filters);
     virtual const FilterSet*GetFilters() const;
 
@@ -411,6 +434,7 @@ public:
 
     // Return character bounds in specified coordinate space.
     virtual RectF           GetBounds(const Matrix &t) const     { SF_UNUSED(t); return RectF(0); }
+    RectF                   GetBoundsIn3D() const;
     // Returns character bounds excluding stroke
     virtual RectF           GetRectBounds(const Matrix &t) const { SF_UNUSED(t); return RectF(0); }
     // Return transformed bounds of character in root movie space.
@@ -435,10 +459,11 @@ public:
 
         // "in"
         const InteractiveObject*    pIgnoreMC;
-        bool                        TestAll;
+        const DisplayObject*        pHitArea;
         unsigned                    ControllerIdx;
+        bool                        TestAll;
 
-        TopMostDescr():pIgnoreMC(NULL), TestAll(false), ControllerIdx(0) {}
+        TopMostDescr():pIgnoreMC(NULL), pHitArea(NULL), ControllerIdx(0), TestAll(false) {}
     };
     enum TopMostResult
     {
@@ -521,9 +546,9 @@ public:
 protected:
     virtual void            OnEventUnload();
     //void                    OnRemoved() { GetAvmObjImpl()->OnRemoved(); }
-    void                    EnsureGeomDataCreated();
 
 public:
+    void                    EnsureGeomDataCreated();
     void                    OnUnload() 
     { 
         OnEventUnload();
@@ -845,7 +870,7 @@ public:
 
     DisplayObject*          GetMask() const;
     DisplayObject*          GetMaskOwner() const;
-    void                    SetMask(DisplayObject* ch);
+    void                    SetMask(DisplayObject* ch, bool readdMaskToDisplayList=true);
     void                    SetMaskOwner(DisplayObject* ch);
 
     // if parameter NULL, scrollRect is removed
@@ -877,10 +902,6 @@ public:
         (v) ? Flags |= Mask_TimelineObject : Flags &= (~Mask_TimelineObject); 
     }
     bool                    IsTimelineObjectFlagSet() const     { return (Flags & Mask_TimelineObject) != 0; }
-
-    void                    SetScale9Grid(const RectF& rect);
-    RectF                   GetScale9Grid() const;
-    bool                    HasScale9Grid() { return !GetScale9Grid().IsEmpty(); }
 
     virtual void            DoDisplayCallback() {}
 

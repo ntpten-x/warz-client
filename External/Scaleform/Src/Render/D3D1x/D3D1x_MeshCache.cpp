@@ -14,7 +14,12 @@ otherwise accompanies this software in either electronic or hard copy form.
 **************************************************************************/
 
 #include "Render/D3D1x/D3D1x_MeshCache.h"
-#include "Render/D3D1x/D3D1x_ShaderDescs.h"
+#if defined(_DURANGO)
+    #include "Render/D3D1x/XboxOne_ShaderDescs.h"
+#else
+    #include "Render/D3D1x/D3D1x_ShaderDescs.h"
+#endif
+#include "Render/D3D1x/D3D1x_Shader.h"
 #include "Kernel/SF_Debug.h"
 #include "Kernel/SF_Alg.h"
 #include "Kernel/SF_HeapNew.h"
@@ -56,18 +61,15 @@ MeshCache::~MeshCache()
 
 // Initializes MeshCache for operation, including allocation of the reserve
 // buffer. Typically called from SetVideoMode.
-bool MeshCache::Initialize(ID3D1x(Device)* pdevice, ID3D1x(DeviceContext) *pcontext)
+bool MeshCache::Initialize(ID3D1x(Device)* pdevice, ID3D1x(DeviceContext) *pcontext, ShaderManager* psm)
 {
-    SF_ASSERT(!pDevice || !pDeviceContext);
+    SF_ASSERT(!pDevice || !pDeviceContext || !psm);
 
     pDevice = pdevice;
     pDeviceContext = pcontext;
+    pShaderManager = psm;
 
-    // If SetDevice fails, it means that creating queries failed.
-    if ( !RSync.SetDevice(pdevice, pcontext))
-    {
-        SF_DEBUG_WARNING(1, "RenderSync initialization failed. Using static buffers in MeshCache.");
-    }
+    adjustMeshCacheParams(&Params);
 
     if (!StagingBuffer.Initialize(pHeap, Params.StagingBufferSize))
         return false;
@@ -90,10 +92,6 @@ bool MeshCache::Initialize(ID3D1x(Device)* pdevice, ID3D1x(DeviceContext) *pcont
 
 void MeshCache::Reset()
 {
-    // This must happen before destroying buffers. If the device is lost, then the WaitFence implementation
-    // depends on the RenderSync to be reset before any meshes are destroy. Otherwise and infinite wait may occur.
-    RSync.SetDevice(0, 0);
-
     if (pDevice)
         destroyBuffers();
     // Unconditional to simplify Initialize fail logic:
@@ -107,6 +105,8 @@ void MeshCache::Reset()
 void MeshCache::ClearCache()
 {
     destroyBuffers(MeshBuffer::AT_Chunk);
+    StagingBuffer.Reset();
+    StagingBuffer.Initialize(pHeap, Params.StagingBufferSize);
     SF_ASSERT(BatchCacheItemHash.GetSize() == 0);
 }
 
@@ -175,6 +175,10 @@ void MeshCache::adjustMeshCacheParams(MeshCacheParams* p)
                                sizeof(UInt16) * p->MaxIndicesInBatch;
     if (maxStagingItemSize * 2 > p->StagingBufferSize)
         p->StagingBufferSize = maxStagingItemSize * 2;
+
+    // If we have a shader manager, we can query whether we have instancing. If not, disable it.
+    if (!pShaderManager->HasInstancingSupport())
+        p->InstancingThreshold = 0;
 }
 
 
@@ -215,14 +219,11 @@ void MeshCache::destroyPendingBuffers()
 
 void MeshCache::BeginFrame()
 {
-    RSync.BeginFrame();
 }
 
 void MeshCache::EndFrame()
 {
     SF_AMP_SCOPE_RENDER_TIMER(__FUNCTION__, Amp_Profile_Level_Medium);
-
-    RSync.EndFrame();
 
     CacheList.EndFrame();
 
@@ -334,31 +335,7 @@ bool MeshCache::createMaskEraseBatchVertexBuffer(ID3D1x(Device)* pdevice)
     vbdesc.MiscFlags            = 0;
     D3D11(vbdesc.StructureByteStride  = 0;)
 
-    for(unsigned i = 0; i< SF_RENDER_MAX_BATCHES; i++)
-    {
-        // This assumes Alpha in first byte. Effect may depend on byte order and
-        // ShaderManager vertex format mapping (offset assigned for VET_Instance8
-        // for ShaderManager::registerVertexFormat).
-        pbuffer[i * 6 + 0].x  = 0;
-        pbuffer[i * 6 + 0].y  = 1;
-        pbuffer[i * 6 + 0].Alpha[0] = (UByte)i;
-        pbuffer[i * 6 + 1].x  = 0;
-        pbuffer[i * 6 + 1].y  = 0;
-        pbuffer[i * 6 + 1].Alpha[0] = (UByte)i;
-        pbuffer[i * 6 + 2].x  = 1;
-        pbuffer[i * 6 + 2].y  = 0;
-        pbuffer[i * 6 + 2].Alpha[0] = (UByte)i;
-
-        pbuffer[i * 6 + 3].x  = 0;
-        pbuffer[i * 6 + 3].y  = 1;
-        pbuffer[i * 6 + 3].Alpha[0] = (UByte)i;
-        pbuffer[i * 6 + 4].x  = 1;
-        pbuffer[i * 6 + 4].y  = 0;
-        pbuffer[i * 6 + 4].Alpha[0] = (UByte)i;
-        pbuffer[i * 6 + 5].x  = 1;
-        pbuffer[i * 6 + 5].y  = 1;
-        pbuffer[i * 6 + 5].Alpha[0] = (UByte)i;
-    }
+    fillMaskEraseVertexBuffer<VertexXY16fAlpha>(pbuffer, SF_RENDER_MAX_BATCHES);
 
     D3D1x(SUBRESOURCE_DATA) initData;
     initData.pSysMem            = pbuffer;
@@ -522,10 +499,16 @@ bool MeshCache::allocBuffer(UPInt* poffset, MeshBuffer** pbuffer,
     {
         if (!pitems->GPUFence || !pitems->GPUFence->IsPending(FenceType_Vertex))
         {
-        if (Evict(pitems, &mbs.GetAllocator()) >= size)
-            goto alloc_size_available;
+            if (Evict(pitems, &mbs.GetAllocator()) >= size)
+                goto alloc_size_available;
+
+            // Get the first item in the list, because and the head of the list will now be different, due to eviction.
+            pitems = (MeshCacheItem*)prevFrameList.GetFirst();
         }
-        pitems = (MeshCacheItem*)prevFrameList.GetFirst();
+        else
+        {
+            pitems = (MeshCacheItem*)prevFrameList.GetNext(pitems);
+        }
     }
 
     // #4. If MRU swapping didn't work for ThisFrame items due to them still
@@ -579,6 +562,11 @@ bool MeshCache::PreparePrimitive(PrimitiveBatch* pbatch,
         return true;
     }
 
+    // Prepare and Pin mesh data with the StagingBuffer. NOTE: this must happen before calculating mesh sizes.
+    // This stage updates the mesh vertex/index counts, so calculating them first, it could be incorrect, for
+    // example in the case of MeshCache::ClearCache, and changing ToleranceParams.
+    StagingBufferPrep   meshPrep(this, mc, prim->GetVertexFormat(), false);
+
     // NOTE: We always know that meshes in one batch fit into Mesh Staging Cache.
     unsigned totalVertexCount, totalIndexCount;
     pbatch->CalcMeshSizes(&totalVertexCount, &totalIndexCount);
@@ -603,8 +591,10 @@ bool MeshCache::PreparePrimitive(PrimitiveBatch* pbatch,
 
     pbatch->SetCacheItem(batchData);
 
-    // Prepare and Pin mesh data with the StagingBuffer.
-    StagingBufferPrep meshPrep(this, mc, prim->GetVertexFormat(), false);
+    // This step either generates the mesh into the staging buffer, or locates an existing MeshCacheItem
+    // that we can copy the mesh from. It must be done after creating the cache item, because that may
+    // evict the item that would be copied from.
+    meshPrep.GenerateMeshes(batchData);
 
     // Copy meshes into the Vertex/Index buffers.
 

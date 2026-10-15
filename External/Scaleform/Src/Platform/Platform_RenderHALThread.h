@@ -19,6 +19,7 @@ otherwise accompanies this software in either electronic or hard copy form.
 
 #include "Render/Renderer2D.h"
 #include "Render/Render_ThreadCommandQueue.h"
+#include "Render/Render_Profiler.h"
 #include "Platform_RTCommandQueue.h"
 #include "Platform.h"
 
@@ -107,6 +108,7 @@ public:
 
     bool    InitGraphics(const ViewConfig& config, Device::Window* window,
                          ThreadId renderThreadId = 0);
+    void    ResizeFrame(void* layer);
     bool    ReconfigureGraphics(const ViewConfig& config);
     void    DestroyGraphics();
 
@@ -143,6 +145,7 @@ public:
 
     void    DrawFrame();
     void    WaitForOutstandingDrawFrame();
+    void    FinishFrame();
     
     void    ToggleWireframe()
     {
@@ -152,7 +155,24 @@ public:
 	{
 		Wireframe = wireframe;
 	}
-    
+
+    void        SetProfileMode(Render::ProfilerModes mode)
+    {
+        PushCall(&RenderHALThread::setProfileMode, mode);
+    }
+
+    void        SetProfileFlag(unsigned flag, bool state)
+    {
+        PushCall(&RenderHALThread::setProfileFlag, flag, state);
+    }
+
+    unsigned    GetProfileFlag( unsigned flag )
+    {
+        unsigned result;
+        PushCallAndWaitResult(&RenderHALThread::getProfileFlag, &result, flag);
+        return result;
+    }
+
     unsigned GetFrames()
     {
         return Frames.Exchange_NoSync(0);
@@ -204,17 +224,22 @@ protected:
     
     virtual bool initGraphics(const ViewConfig& config, Device::Window* window,
                               ThreadId renderThreadId);
+    virtual void resizeFrame(void* layer);
     virtual bool reconfigureGraphics(const ViewConfig& config);
     virtual void destroyGraphics();
     void         blockForGraphicsInit();
     void         exitThread();
     void         setBackgroundColor(Render::Color bgColor) { BGColor = bgColor; }
     void         setStereoParams(Render::StereoParams sparams);
+    void         setProfileMode(Render::ProfilerModes mode);
+    void         setProfileFlag(unsigned flag, bool state);
+    unsigned     getProfileFlag(unsigned flag);
     Render::Color getBackgroundColor() const { return BGColor; }
 
     Render::HAL* getHAL() const { return pDevice->GetHAL(); }   
 
     virtual void drawFrame() = 0;
+    virtual void finishFrame() = 0;
     virtual void createCursorPrimitives(Render::HAL*) {};
     virtual void updateCursor(const Point<int> mousePos, SystemCursorState state);
     virtual void getMeshCacheParams(Render::MeshCacheParams* params);
@@ -280,7 +305,7 @@ protected:
 
     volatile unsigned       WatchDogTrigger;                // Indicates whether the watchdog is satisfied (false == unsatisfied)
     static const int        WatchDogInterval = 5000;        // Time between watchdog checks (ms)
-    static const int        WatchDogMaxFailureCount = 3;    // Maximum number of watchdog failures before killing.
+    static const int        WatchDogMaxFailureCount = 12;   // Maximum number of watchdog failures before killing.
     Thread                  WatchDogThread;                 // Thread object performing watchdog checks.
 
     static int              watchDogThreadFn(Thread* thread, void* trigger);

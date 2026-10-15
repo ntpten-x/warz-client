@@ -22,7 +22,7 @@ otherwise accompanies this software in either electronic or hard copy form.
 #ifdef SF_ENABLE_LIBPNG
 
 #ifdef SF_OS_WIN32
-#include "../3rdParty/libpng/png.h"
+#include "../3rdParty/libpng-1.5.13/png.h"
 
 #else
 #include <png.h>
@@ -61,12 +61,12 @@ static void SF_CDECL png_error_handler(png_structp png_ptr, png_const_charp msg)
         SFstrncpy(pcontext->errorMessage, sizeof(pcontext->errorMessage), msg, sizeof(pcontext->errorMessage) - 1);
         pcontext->errorMessage[sizeof(pcontext->errorMessage) - 1] = 0;
     }
-    longjmp(png_ptr->jmpbuf, 1);
+    png_longjmp(png_ptr, 1);
 }
 
 static void SF_CDECL png_read_data(png_structp png_ptr, png_bytep data, png_size_t length)
 {
-    File* pfile = reinterpret_cast<File*>(png_ptr->io_ptr);
+    File* pfile = reinterpret_cast<File*>(png_get_io_ptr(png_ptr));
     int check = pfile->Read(data, (int)length);
 
     if (check < 0 || ((png_size_t)check) != length)
@@ -149,7 +149,7 @@ static int GFxPngReadInfo(PngContext* context)
 
     // row_bytes is the width x number of channels
 
-    context->ulRowBytes = png_get_rowbytes(context->png_ptr, context->info_ptr);
+    context->ulRowBytes = (png_uint_32)png_get_rowbytes(context->png_ptr, context->info_ptr);
 
     return 1;
 }
@@ -347,6 +347,56 @@ public:
         }
         png_destroy_read_struct(&Context.png_ptr, &Context.info_ptr, NULL);
         IsInitialized = false;
+
+#if defined(SF_FIX_PNG_ALPHA) && SF_FIX_PNG_ALPHA
+        // Do a post-process on the final image data, to correct zero-alpha regions of the image.
+        for (unsigned y = 0; y < pdest->GetHeight(); ++y)
+        {
+            UByte* destScanline = pdest->GetScanline(y);
+            for (unsigned x = 0; x < pdest->GetWidth(); ++x)
+            {
+                Color c = pdest->GetPixelInScanline(destScanline, x);
+                if (c.GetAlpha() == 0)
+                {
+                    // Do a kernel around this pixel, to make it blend out nicely.
+                    unsigned pixelColor[3]; // 3 = RGB.
+                    unsigned contributingPixels = 0;
+                    const int kernelSize = 1;
+
+                    memset(pixelColor, 0, sizeof pixelColor);
+                    for (int kernelY = (int)y-kernelSize; kernelY <= (int)y+kernelSize; kernelY++)
+                    {
+                        if (kernelY < 0 || kernelY >= (int)pdest->GetHeight())
+                            continue;
+                        UByte* kernelScanline = pdest->GetScanline(kernelY);
+                        for (int kernelX = (int)x-kernelSize; kernelX <= (int)x+kernelSize; kernelX++)
+                        {
+                            if (kernelX < 0 || kernelX >= (int)pdest->GetWidth())
+                                continue;
+                            Color c = pdest->GetPixelInScanline(kernelScanline, kernelX);
+                            if (c.GetAlpha() != 0)
+                            {
+                                pixelColor[0] += c.GetRed();
+                                pixelColor[1] += c.GetGreen();
+                                pixelColor[2] += c.GetBlue();
+                                contributingPixels++;
+                            }
+                        }
+                    }
+
+                    Color finalColor(Color::Black|Color::Alpha0);
+                    if (contributingPixels > 0)
+                    {
+                        finalColor.SetRed((UByte)Alg::Min<int>(255,pixelColor[0]/contributingPixels));
+                        finalColor.SetGreen((UByte)Alg::Min<int>(255,pixelColor[1]/contributingPixels));
+                        finalColor.SetBlue((UByte)Alg::Min<int>(255,pixelColor[2]/contributingPixels));
+                    }
+                    pdest->SetPixelInScanline(destScanline, x, finalColor.ToColor32()); 
+                }
+            }
+        }
+#endif
+
         return success;
     }
 
@@ -482,7 +532,7 @@ FileReader FileReader::Instance;
 
 static void SF_CDECL png_write_data(png_structp png_ptr, png_bytep data, png_size_t length)
 {
-    File* pfile = reinterpret_cast<File*>(png_ptr->io_ptr);
+    File* pfile = reinterpret_cast<File*>(png_get_io_ptr(png_ptr));
     int check = pfile->Write(data, (int)length);
 
     if (check < 0 || ((png_size_t)check) != length)

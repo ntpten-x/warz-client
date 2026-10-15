@@ -20,13 +20,13 @@ otherwise accompanies this software in either electronic or hard copy form.
 
 #include "Render_DrawableImage.h"
 #include "Render_Context.h"
+#include "Render_Filters.h"
 #include "Kernel/SF_HeapNew.h"
 
 namespace Scaleform { namespace Render {
 
 // Helper functions.
-bool MapImageSource(ImageData* data, ImageBase* i, bool rtMap = true);
-bool IsCPURenderableSource(Image* i);
+bool MapImageSource(ImageData* data, ImageBase* i);
 
 // 'RTTI' enum for DICommand types. This is used when querying the HAL about which
 // DICommands it supports; it may be that a HAL partially supports a command, and thus
@@ -47,10 +47,18 @@ enum DICommandType
     DICommandType_Compare,
     DICommandType_FillRect,
     DICommandType_FloodFill,
+    DICommandType_GetColorBoundsRect,
+    DICommandType_GetPixel32,
+    DICommandType_GetPixels,
+    DICommandType_Histogram,
+    DICommandType_HitTest,
     DICommandType_Merge,
     DICommandType_Noise,
     DICommandType_PaletteMap,
     DICommandType_PerlinNoise,
+    DICommandType_PixelDissolve,
+    DICommandType_SetPixel32,
+    DICommandType_SetPixels,
     DICommandType_Scroll,
     DICommandType_Threshold,
     DICommandType_Count
@@ -92,7 +100,7 @@ struct DISourceImages
         memset(pImages, 0, sizeof(pImages));
     }
 
-    Image* operator [] (int i) const 
+    Image* operator [] (unsigned i) const 
     { 
         SF_DEBUG_ASSERT(i < MaximumSources, "OOB image access.");
         return pImages[i]; 
@@ -112,6 +120,8 @@ struct DICommand
         RC_GPU           = 0x02,  // Command is executable on the GPU.
         RC_GPUPreference = 0x04,  // GPU execution is preferred but not necessary (prevents immediate CPU execution even when image is mapped).
         RC_GPU_NoRT      = 0x08,  // GPU command does not require the Image's RenderTarget to be set (eg. for Create/Map/Unmap).
+        RC_CPU_Return    = 0x10,  // Command requires a return value (and therefore must be waited for to execute on the CPU).
+        RC_CPU_NoModify  = 0x20,  // CPU command does not modify the image.
     };
 
     DICommand(DrawableImage* image = 0) : pImage(image) { }
@@ -119,38 +129,37 @@ struct DICommand
     virtual ~DICommand() { }
     
     virtual DICommandType GetType() const = 0;
-    virtual unsigned HasCPUImplementation() const = 0;
+    virtual unsigned GetCPUCaps() const = 0;
     virtual unsigned GetRenderCaps() const;
     virtual unsigned GetSize() const = 0;
 
-    // Fills in SourceImages data struncture; returns the number
-    // of images used.
+    // Fills in SourceImages data structure; returns the number of images used.
     virtual unsigned GetSourceImages(DISourceImages*) const { return 0; }
-
-    // Returns 'true' if CPU command has no sources and/or if sources are
-    // mapped/mappable. Dest must also be mapped.
-    bool             IsCPURenderableOnMainThread() const;
-    static bool      IsCPURenderableSource(Image* i);
-
-    bool             ExecuteSWOnAddCommand(DrawableImage* i) const;
-
+    
     // RenderThread execution function; does proper map/unmap and dispatches
     // to either ExecuteHW or ExecuteSW. 
     void             ExecuteRT(DICommandContext& context) const;
 
+    // Attempts to execute the command immediately on the Advance thread, if it is
+    // required to return a value to the VM. Returns true if it is executed, false if
+    // it is deferred to the render thread.
+    bool             ExecuteSWOnAddCommand(DrawableImage* i) const;
 
     virtual void     ExecuteHW(DICommandContext&) const { }
     virtual void     ExecuteSW(DICommandContext& context,
                                ImageData& dest, ImageData** psrc = 0) const
     { SF_UNUSED3(context, dest, psrc); }
 
+    // ExecuteDiscard happens when the command is not executed, but discarded. This can
+    // happen if the context is being shutdown, with no waiting for completion request.
+    virtual void     ExecuteDiscard() { }
+
 protected:
 
     bool     executeSWHelper(DICommandContext& context,
                              DrawableImage* i,
                              DISourceImages& images,
-                             unsigned imageCount,
-                             bool rtMap = true) const;
+                             unsigned imageCount) const;
 
     bool     executeHWHelper(DICommandContext& context,
                              DrawableImage* i) const;
@@ -163,7 +172,6 @@ struct DICommandImpl : public B
     DICommandImpl() {}
     DICommandImpl(DrawableImage* image) : B(image) { }
     
-    DICommandImpl(const DICommandImpl& other) : B(other) { }
     virtual unsigned GetSize() const { return sizeof(D); }
 };
 
@@ -243,7 +251,6 @@ public:
     }
 
     void ExecuteCommandsRT(DICommandContext& context);
-    void ExecuteCommandsMT(DICommandContext& context);
 
     bool IsEmpty() const { return QueueList.IsEmpty(); }
 
@@ -285,7 +292,6 @@ public:
     };
 
 
-    
     template<class C>
     bool AddCommand_NTS(const C& src)
     {
@@ -302,7 +308,6 @@ public:
     template<class C>
     bool AddCommand(const C& src)
     {
-        Lock::Locker lock(&QueueLock);
         return AddCommand_NTS(src);
     }
 
@@ -314,16 +319,8 @@ public:
 
 
     void ExecuteNextCapture(ContextImpl::RenderNotify* notify);
-    void ExecuteCommandsAndWait()
-    {
-        // ExecuteCmd/Queue may not be reference counted by the ThreadCommandQueue, so protect them
-        // against its deletion until after it executes here by adding extra refs.
-        AddRef();
-        ExecuteCmd->AddRef();
-
-        pRTCommandQueue->PushThreadCommand(ExecuteCmd);
-        ExecuteCmd->WaitDoneAndReset();
-    }   
+    void ExecuteCommandsAndWait();   
+    void DiscardCommands();
 
     class ExecuteCommand : public ThreadCommand
     {
@@ -351,40 +348,18 @@ protected:
     DIQueuePage*    allocPage();
     void            freePage(DIQueuePage* page);
     void            popCommandSet(DICommandSet* cmdSet, DICommandSetType type);
-    bool            isQueueListCPURenderable(List<DIQueuePage>& queue) const;
-    bool            isQueueEmpty_NTS() const;
-    bool            isCPURenderable_NTS();
     DICommandQueue* getThis() { return this; }
 
     void            updateCPUModifiedImagesRT();
     void            updateGPUModifiedImagesRT();
 
-    void lockCommandSetAndWait(DICommandSet** pcommands)
-    {
-        CommandSetMutex.DoLock();
-        while(*pcommands)
-            CommandSetWC.Wait(&CommandSetMutex);
-    }
-    void unlockCommandSet()
-    {
-        CommandSetMutex.Unlock();
-    }
-    void notifyCommandSetFinished(DICommandSet** pcommands)
-    {
-        Mutex::Locker mlock(&CommandSetMutex);
-        *pcommands = 0;
-        CommandSetWC.NotifyAll();
-    }
+    void            lockCommandSetAndWait(DICommandSet** pcommands);
+    void            unlockCommandSet();
+    void            notifyCommandSetFinished(DICommandSet** pcommands);
 
     Mutex               CommandSetMutex;
     WaitCondition       CommandSetWC;
     DICommandSet*       pRTCommands;        // Render thread command in progress.
-    DICommandSet*       pATCommands;        // Advance thread command in progress.
-
-    // Keep a list of images relying on this queue.
-    List<DrawableImage> ImageList;
-
-    Ptr<DrawableImageContext>   pDIContext;
 
     // Drawable image update lists. One tracks images that were modified by the CPU, and thus
     // will require the GPU data to be updated, the other is the reverse, GPU modified data that
@@ -409,46 +384,6 @@ protected:
 // ***** Commands
 //--------------------------------------------------------------------
 
-struct DICommand_Map : public DICommandImpl<DICommand_Map>
-{
-    bool ReadOnlyMapping;   // Map the image with the read-only capabilities.
-	bool ForceRemapping;	// Re-map the image after updating the staging target.
-
-    DICommand_Map(DrawableImage* image, bool readOnly, bool forced = false) : 
-        DICommandImpl<DICommand_Map>(image),
-        ReadOnlyMapping(readOnly),
-		ForceRemapping(forced)
-    { }
-
-    virtual DICommandType GetType() const { return DICommandType_Map; }
-    virtual unsigned HasCPUImplementation() const { return false; }
-    virtual void ExecuteHW(DICommandContext&) const
-    {
-        pImage->mapTextureRT(ReadOnlyMapping, ForceRemapping);
-    }
-};
-
-struct DICommand_Unmap : public DICommandImpl<DICommand_Unmap>
-{
-    // ModifyRect reports the modified rectangle. If empty,
-    // no modification took place so no upload is necessary.
-    Rect<SInt32> ModifyRect;
-    
-    DICommand_Unmap(DrawableImage* image, const Rect<SInt32>& modifyRect)
-        : DICommandImpl<DICommand_Unmap>(image), ModifyRect(modifyRect)
-    { }
-
-    virtual DICommandType GetType() const { return DICommandType_Unmap; }
-    virtual unsigned HasCPUImplementation() const { return false; }
-    virtual void ExecuteHW(DICommandContext&) const
-    {
-        // TODOBM: Provide a way to specify update rectangle
-        pImage->unmapTextureRT();
-    }
-};
-
-
-
 // CreateTexture command is emitted to the thread queue to initialize texture
 // in constructor.
 
@@ -457,12 +392,9 @@ struct DICommand_CreateTexture : public DICommandImpl<DICommand_CreateTexture>
     DICommand_CreateTexture(DrawableImage* image)
         : DICommandImpl<DICommand_CreateTexture>(image)
     { }
-    DICommand_CreateTexture(const DICommand_CreateTexture& other)
-        : DICommandImpl<DICommand_CreateTexture>(other.pImage)
-    { }
 
     virtual DICommandType GetType() const { return DICommandType_CreateTexture; }
-    virtual unsigned HasCPUImplementation() const { return false; }
+    virtual unsigned GetCPUCaps() const { return 0; }
 
     virtual void ExecuteHW(DICommandContext& context) const;
 };
@@ -477,12 +409,9 @@ struct DICommand_Clear : public DICommandImpl<DICommand_Clear>
     DICommand_Clear(DrawableImage* image, Color color)
         : DICommandImpl<DICommand_Clear>(image), FillColor(color)
     { }
-    DICommand_Clear(const DICommand_Clear& other)
-        : DICommandImpl<DICommand_Clear>(other.pImage), FillColor(other.FillColor)
-    { }
 
     virtual DICommandType GetType() const { return DICommandType_Clear; }
-    virtual unsigned HasCPUImplementation() const { return true; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
 
     virtual void ExecuteSW(DICommandContext& context,
         ImageData& dest, ImageData** src = 0) const;
@@ -497,53 +426,12 @@ struct DICommand_SourceRect : public DICommand
     Ptr<DrawableImage>  pSource;
     Rect<SInt32>        SourceRect;
     Point<SInt32>       DestPoint;    
-	Rect<SInt32>		ClippedSourceRect;
   
     DICommand_SourceRect(DrawableImage* image, DrawableImage* source,
                          const Rect<SInt32>& sr, const Point<SInt32>& dp)
-        : DICommand(image), pSource(source), SourceRect(sr), DestPoint(dp),
-		  ClippedSourceRect(sr)
+        : DICommand(image), pSource(source), SourceRect(sr), DestPoint(dp)
     {
-		UpdateClippedRects();
-	}
-    DICommand_SourceRect(const DICommand_SourceRect& other)
-        : DICommand(other.pImage), pSource(other.pSource),
-          SourceRect(other.SourceRect), DestPoint(other.DestPoint),
-		  ClippedSourceRect(other.SourceRect)
-    {
-		UpdateClippedRects();
-	}
-
-	virtual void UpdateClippedRects()
-	{
-		ImageSize sz = pSource->GetSize();
-		SInt32 tlx = SourceRect.TopLeft().x;
-		SInt32 tly = SourceRect.TopLeft().y;
-		SInt32 brx = SourceRect.BottomRight().x;
-		SInt32 bry = SourceRect.BottomRight().y;
-
-		if(SourceRect.Width() < 0)
-		{
-			SInt32 temp = tlx;
-			tlx = brx;
-			brx = temp;
-		}
-
-		if(SourceRect.Height() < 0)
-		{
-			SInt32 temp = tly;
-			tly = bry;
-			bry = temp;
-		}
-
-		tlx = ((tlx < 0) ? 0 : tlx);
-		tly = ((tly < 0) ? 0 : tly);
-		brx = ((brx > (SInt32)sz.Width) ? sz.Width : brx);
-		bry = ((bry > (SInt32)sz.Height) ? sz.Height : bry);
-
-		ClippedSourceRect.SetTopLeft(Point<SInt32>(tlx, tly));
-		ClippedSourceRect.SetBottomRight(Point<SInt32>(brx, bry));
-	}
+    }
 
     virtual unsigned GetSourceImages(DISourceImages* ps) const
     {
@@ -551,10 +439,14 @@ struct DICommand_SourceRect : public DICommand
         return 1;
     }
 
-    // Calculates the destination clipped rectangle. Used for software implementations, to determine the
-    // area on the destination which should be overwritten, based on the SourceRect size, DestPoint and
-    // dimensions of both images.
-    bool CalculateDestClippedRect( const ImageData &src, ImageData &dest, const Rect<SInt32>& srcRect,
+    // Calculates the destination clipped rectangle. Used to determine the area on the destination 
+    // which should be overwritten, based on the SourceRect size, DestPoint and dimensions of both images.
+    bool CalculateDestClippedRect( const ImageData &src, const ImageData &dest, const Rect<SInt32>& srcRect,
+        Rect<SInt32> &dstClippedRect, Point<SInt32> &delta ) const
+    {
+        return CalculateDestClippedRect(src.GetSize(), dest.GetSize(), srcRect, dstClippedRect, delta);
+    }
+    bool CalculateDestClippedRect( const ImageSize &src, const ImageSize &dest, const Rect<SInt32>& srcRect,
         Rect<SInt32> &dstClippedRect, Point<SInt32> &delta ) const;
 };
 
@@ -564,9 +456,6 @@ struct DICommand_SourceRectImpl : public DICommand_SourceRect
     DICommand_SourceRectImpl(DrawableImage* image, DrawableImage* source,
                              const Rect<SInt32>& sr, const Point<SInt32>& dp)
         : DICommand_SourceRect(image, source, sr, dp)
-    { }
-    DICommand_SourceRectImpl(const DICommand_SourceRectImpl& other)
-        : DICommand_SourceRect(other)
     { }
 
     virtual unsigned GetSize() const { return sizeof(D); }
@@ -610,12 +499,9 @@ struct DICommand_ApplyFilter : public DICommand_SourceRectImpl<DICommand_ApplyFi
                           Filter* filter)
         : DICommand_SourceRectImpl<DICommand_ApplyFilter>(image, source, sr, dp), pFilter(filter)
     { }
-    DICommand_ApplyFilter(const DICommand_ApplyFilter& other)
-        : DICommand_SourceRectImpl<DICommand_ApplyFilter>(other), pFilter(other.pFilter)
-    { }
 
     virtual DICommandType GetType() const { return DICommandType_ApplyFilter; }
-    virtual unsigned HasCPUImplementation() const { return false; }
+    virtual unsigned GetCPUCaps() const { return 0; }
 
     virtual void ExecuteHWGetImages( DrawableImage** images, Size<float>* readOffsets) const;
     virtual void ExecuteHWCopyAction( DICommandContext& context, Render::Texture** tex, const Matrix2F* texgen) const;
@@ -637,15 +523,14 @@ struct DICommand_Draw : public DICommandImpl<DICommand_Draw>
         if (clipRect)
             ClipRect = *clipRect;
     }
-    DICommand_Draw(const DICommand_Draw& other)
-        : DICommandImpl<DICommand_Draw>(other.pImage),
-          pRoot(other.pRoot), ClipRect(other.ClipRect), HasClipRect(other.HasClipRect)
-    { }
 
     virtual DICommandType GetType() const { return DICommandType_Draw; }
-    virtual unsigned HasCPUImplementation() const { return false; }
+    virtual unsigned GetCPUCaps() const { return 0; }
 
     virtual void ExecuteHW(DICommandContext&) const;
+
+    // DICommand_Draw needs to override ExecuteDiscard, so it can properly handle the destruction of pRoot.
+    virtual void ExecuteDiscard();
 };
 
 
@@ -668,7 +553,7 @@ struct DICommand_CopyChannel : public DICommand_SourceRectImpl<DICommand_CopyCha
     }
 
     virtual DICommandType GetType() const { return DICommandType_CopyChannel; }
-    virtual unsigned HasCPUImplementation() const { return true; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
 
     virtual void ExecuteHWCopyAction( DICommandContext& context, Render::Texture** tex, const Matrix2F* texgen ) const;
     virtual bool GetRequireSourceRead() const { return true; };
@@ -694,15 +579,8 @@ struct DICommand_CopyPixels : public DICommand_SourceRectImpl<DICommand_CopyPixe
       MergeAlpha(mergeAlpha)
     { }
 
-    DICommand_CopyPixels(const DICommand_CopyPixels& other)
-    : DICommand_SourceRectImpl<DICommand_CopyPixels>(other),
-        pAlphaSource(other.pAlphaSource),
-        AlphaPoint(other.AlphaPoint),
-        MergeAlpha(other.MergeAlpha)
-    { }
-
     virtual DICommandType GetType() const { return DICommandType_CopyPixels; }
-    virtual unsigned HasCPUImplementation() const { return true; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
 
     virtual void Execute(DICommandContext&) const { }
 
@@ -736,16 +614,12 @@ struct DICommand_ColorTransform : public DICommand_SourceRectImpl<DICommand_Colo
         : DICommand_SourceRectImpl<DICommand_ColorTransform>(image, image, rect, rect.TopLeft()),
           Cx(cxform)
     { }
-    DICommand_ColorTransform(const DICommand_ColorTransform& other)
-        : DICommand_SourceRectImpl<DICommand_ColorTransform>(other),
-          Cx(other.Cx)
-    { }
 
     virtual DICommandType GetType() const { return DICommandType_ColorTransform; }
-    virtual unsigned HasCPUImplementation() const { return true; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
     virtual void ExecuteHWCopyAction( DICommandContext& context, Render::Texture** tex, const Matrix2F* texgen ) const;
     virtual bool GetRequireSourceRead() const { return true; };
-	virtual void ExecuteSW(DICommandContext& context, ImageData& dest, ImageData** src = 0) const;
+    virtual void ExecuteSW(DICommandContext& context, ImageData& dest, ImageData** src = 0) const;
 };
 
 struct DICommand_Compare : public DICommand_SourceRectImpl<DICommand_Compare>
@@ -757,11 +631,6 @@ struct DICommand_Compare : public DICommand_SourceRectImpl<DICommand_Compare>
         pImageCompare1(cmp1)
     { }
 
-    DICommand_Compare(const DICommand_Compare& other) :
-        DICommand_SourceRectImpl<DICommand_Compare>(other),
-        pImageCompare1(other.pImageCompare1)
-    { }
-
     virtual unsigned GetSourceImages(DISourceImages* ps) const
     {
         ps->pImages[0] = pSource;
@@ -769,10 +638,10 @@ struct DICommand_Compare : public DICommand_SourceRectImpl<DICommand_Compare>
         return 2;
     }
     virtual DICommandType GetType() const { return DICommandType_Compare; }
-    virtual unsigned HasCPUImplementation() const { return true; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
     virtual void ExecuteHWCopyAction( DICommandContext& context, Render::Texture** tex, const Matrix2F* texgen ) const;
     virtual bool GetRequireSourceRead() const { return pSource == pImage || pImageCompare1 == pImage; };
-	virtual void ExecuteSW(DICommandContext& context, ImageData& dest, ImageData** src = 0) const;
+    virtual void ExecuteSW(DICommandContext& context, ImageData& dest, ImageData** src = 0) const;
 };
 
 
@@ -784,13 +653,9 @@ struct DICommand_FillRect : public DICommandImpl<DICommand_FillRect>
     DICommand_FillRect(DrawableImage* image, const Rect<SInt32>& rect, Color color)
         : DICommandImpl<DICommand_FillRect>(image), ApplyRect(rect), FillColor(color)
     { }
-    DICommand_FillRect(const DICommand_FillRect& other)
-        : DICommandImpl<DICommand_FillRect>(other.pImage),
-          ApplyRect(other.ApplyRect), FillColor(other.FillColor)
-    { }
 
     virtual DICommandType GetType() const { return DICommandType_FillRect; }
-    virtual unsigned HasCPUImplementation() const { return true; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
 
     virtual void ExecuteSW(DICommandContext& context,
                            ImageData& dest, ImageData** src = 0) const;
@@ -807,15 +672,140 @@ struct DICommand_FloodFill : public DICommandImpl<DICommand_FloodFill>
     DICommand_FloodFill(DrawableImage* image, const Point<SInt32>& pt, Color color)
         : DICommandImpl<DICommand_FloodFill>(image), Pt(pt), FillColor(color)
     { }
-    DICommand_FloodFill(const DICommand_FloodFill& other)
-        : DICommandImpl<DICommand_FloodFill>(other.pImage), Pt(other.Pt), FillColor(other.FillColor)
-    { }
 
     virtual DICommandType GetType() const { return DICommandType_FloodFill; }
-    virtual unsigned HasCPUImplementation() const { return true; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
 
     virtual void ExecuteSW(DICommandContext& context,
                            ImageData& dest, ImageData** src = 0) const;
+};
+
+struct DICommand_GetColorBoundsRect : public DICommandImpl<DICommand_GetColorBoundsRect>
+{
+    UInt32                  Mask;           // The mask to apply to the image data when doing the comparison.
+    UInt32                  SearchColor;    // The color that is being searched for.
+    bool                    FindColor;      // Whether the search is for the rectangle containing color, or the absence of the color.
+    mutable Rect<SInt32>*   Result;         // The resultant rectangle (return value).
+
+    DICommand_GetColorBoundsRect(DrawableImage* image, UInt32 mask, UInt32 color, bool findColor, Rect<SInt32>* result )
+        : DICommandImpl<DICommand_GetColorBoundsRect>(image), Mask(mask), SearchColor(color), FindColor(findColor),
+          Result(result)
+    {
+        // If the image is not transparent, never compare the alpha channel.
+        if (!image->IsTransparent())
+            Mask &= 0x00FFFFFF;
+    }
+
+    virtual DICommandType GetType() const { return DICommandType_GetColorBoundsRect; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU | RC_CPU_Return | RC_CPU_NoModify; }
+
+    virtual void ExecuteSW(DICommandContext& context,
+                           ImageData& dest, ImageData** src = 0) const;
+
+};
+
+struct DICommand_GetPixel32 : public DICommandImpl<DICommand_GetPixel32>
+{
+    UInt32          X;          // X coordinate of the pixel to retrieve.
+    UInt32          Y;          // Y coordinate of the pixel to retrieve.
+    mutable Color*  Result;     // The resultant pixel color (return value)
+
+    DICommand_GetPixel32(DrawableImage* image, SInt32 x, SInt32 y, Color* result )
+        : DICommandImpl<DICommand_GetPixel32>(image), X(x), Y(y), Result(result)
+    {
+    }
+
+    virtual DICommandType GetType() const { return DICommandType_GetPixel32; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU | RC_CPU_Return | RC_CPU_NoModify; }
+
+    virtual void ExecuteSW(DICommandContext& context,
+        ImageData& dest, ImageData** src = 0) const;
+
+};
+
+struct DICommand_GetPixels : public DICommandImpl<DICommand_GetPixels>
+{
+    Rect<SInt32>        SourceRect;     // The rectangle, containing the pixels to retrieve.
+    DIPixelProvider&    Provider;       // The object which will receive pixel values.
+    mutable bool*       Result;         // Is set to true if a bounds error occurred during execution.
+
+    DICommand_GetPixels(DrawableImage* image, Rect<SInt32> srcRect, DIPixelProvider& provider, bool* result )
+        : DICommandImpl<DICommand_GetPixels>(image), SourceRect(srcRect), Provider(provider), Result(result)
+    {
+    }
+
+    DICommand_GetPixels& operator=(const DICommand_GetPixels& other)
+    {
+        SourceRect = other.SourceRect;
+        Provider = other.Provider;
+        Result = other.Result;
+        return *this;
+    }
+
+    virtual DICommandType GetType() const { return DICommandType_GetPixels; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU | RC_CPU_Return | RC_CPU_NoModify; }
+
+    virtual void ExecuteSW(DICommandContext& context,
+        ImageData& dest, ImageData** src = 0) const;
+
+};
+
+struct DICommand_Histogram : public DICommandImpl<DICommand_Histogram>
+{
+    Rect<SInt32>        SourceRect;     // The rectangle, containing the pixels to compute the histogram.
+    mutable unsigned*   Result;         // Array (4x256 values) which will receive the histogram results.
+
+    DICommand_Histogram(DrawableImage* image, Rect<SInt32> srcRect, unsigned* result)
+        : DICommandImpl<DICommand_Histogram>(image), SourceRect(srcRect), Result(result)
+    {
+    }
+
+    virtual DICommandType GetType() const { return DICommandType_Histogram; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU | RC_CPU_Return | RC_CPU_NoModify; }
+
+    virtual void ExecuteSW(DICommandContext& context,
+        ImageData& dest, ImageData** src = 0) const;
+
+};
+
+struct DICommand_HitTest : public DICommandImpl<DICommand_HitTest>
+{
+    Ptr<Image>       SecondImage;        // The image to do the hittest operation with (NULL, if using a hittest rectangle/point).
+    Rect<SInt32>     SecondArea;         // The rectangle to do the hittest operation with (if SecondImage is NULL).
+    Point<SInt32>    FirstPoint;         // The relative point on the first image to use as the origin.
+    Point<SInt32>    SecondPoint;        // The relative point on the second image to use as the origin (only used if SecondImage is NULL).
+    unsigned         FirstThreshold;     // The threshold alpha value to consider opaque on the first image.
+    unsigned         SecondThreshold;    // The threshold alpha value to consider opaque on the second image (if non-NULL).
+    mutable bool*    Result;             // Result (whether a 'hit' occurred).
+
+    DICommand_HitTest(DrawableImage* image, const Point<SInt32>& firstPoint, Rect<SInt32>& secondImage, unsigned alphaThreshold, bool* result)
+        : DICommandImpl<DICommand_HitTest>(image), SecondImage(0), SecondArea(secondImage), FirstPoint(firstPoint), FirstThreshold(alphaThreshold),
+          SecondThreshold(0), Result(result)
+    {
+    }
+    DICommand_HitTest(DrawableImage* image, ImageBase* secondImage, const Point<SInt32>& firstPoint, const Point<SInt32>& secondPoint,
+        unsigned firstThreshold, unsigned secondThreshold, bool* result)
+        : DICommandImpl<DICommand_HitTest>(image), SecondImage((Image*)secondImage), FirstPoint(firstPoint), SecondPoint(secondPoint), 
+          FirstThreshold(firstThreshold), SecondThreshold(secondThreshold), Result(result)
+    {
+    }
+
+    virtual unsigned GetSourceImages(DISourceImages* ps) const
+    {
+        if (SecondImage)
+        {
+            ps->pImages[0] = SecondImage;
+            return 1;
+        }
+        return 0;
+    }
+
+    virtual DICommandType GetType() const { return DICommandType_HitTest; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU | RC_CPU_Return | RC_CPU_NoModify; }
+
+    virtual void ExecuteSW(DICommandContext& context,
+        ImageData& dest, ImageData** src = 0) const;
+
 };
 
 struct DICommand_Merge : public DICommand_SourceRectImpl<DICommand_Merge>
@@ -832,19 +822,11 @@ struct DICommand_Merge : public DICommand_SourceRectImpl<DICommand_Merge>
         RedMultiplier(rmul), GreenMultiplier(gmul), BlueMultiplier(bmul), AlphaMultiplier(amul)
     { }
 
-    DICommand_Merge(const DICommand_Merge& other) :
-        DICommand_SourceRectImpl<DICommand_Merge>(other),
-        RedMultiplier(other.RedMultiplier),
-        GreenMultiplier(other.GreenMultiplier),
-        BlueMultiplier(other.BlueMultiplier),
-        AlphaMultiplier(other.AlphaMultiplier)
-    { }
-
     virtual DICommandType GetType() const { return DICommandType_Merge; }
-    virtual unsigned HasCPUImplementation() const { return true; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
     virtual void ExecuteHWCopyAction( DICommandContext& context, Render::Texture** tex, const Matrix2F* texgen ) const;
     virtual bool GetRequireSourceRead() const { return true; };
-	virtual void ExecuteSW(DICommandContext& context, ImageData& dest, ImageData** src = 0) const;
+    virtual void ExecuteSW(DICommandContext& context, ImageData& dest, ImageData** src = 0) const;
 };
 
 struct DICommand_Noise : public DICommandImpl<DICommand_Noise>
@@ -860,13 +842,9 @@ struct DICommand_Noise : public DICommandImpl<DICommand_Noise>
         : DICommandImpl<DICommand_Noise>(image), RandomSeed(randomSeed), Low(low), 
         High(high), ChannelMask(channelMask), GrayScale(grayscale)
     { }
-    DICommand_Noise(const DICommand_Noise& other)
-        : DICommandImpl<DICommand_Noise>(other.pImage), RandomSeed(other.RandomSeed), Low(other.Low), 
-        High(other.High), ChannelMask(other.ChannelMask), GrayScale(other.GrayScale)
-    { }
 
     virtual DICommandType GetType() const { return DICommandType_Noise; }
-    virtual unsigned HasCPUImplementation() const { return true; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
 
     virtual void ExecuteSW(DICommandContext& context, ImageData& dest, 
         ImageData** psrc = 0) const;
@@ -900,12 +878,12 @@ struct DICommand_PaletteMap : public DICommand_SourceRectImpl<DICommand_PaletteM
     }
 
     DICommand_PaletteMap(const DICommand_PaletteMap& other) :
-    DICommand_SourceRectImpl<DICommand_PaletteMap>(other),
-        ChannelMask(other.ChannelMask)
-    {
-        Channels = (UInt32*)SF_ALLOC(PaletteSize, Stat_Default_Mem);
-        memcpy(Channels, other.Channels, PaletteSize );
-    }
+        DICommand_SourceRectImpl<DICommand_PaletteMap>(other),
+            ChannelMask(other.ChannelMask)
+        {
+            Channels = (UInt32*)SF_ALLOC(PaletteSize, Stat_Default_Mem);
+            memcpy(Channels, other.Channels, PaletteSize );
+        }
 
     ~DICommand_PaletteMap()
     {
@@ -915,10 +893,10 @@ struct DICommand_PaletteMap : public DICommand_SourceRectImpl<DICommand_PaletteM
     }
 
     virtual DICommandType GetType() const { return DICommandType_PaletteMap; }
-    virtual unsigned HasCPUImplementation() const { return true; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
     virtual void ExecuteHWCopyAction( DICommandContext& context, Render::Texture** tex, const Matrix2F* texgen ) const;
     virtual bool GetRequireSourceRead() const { return pImage == pSource; };
-	virtual void ExecuteSW(DICommandContext& context, ImageData& dest, ImageData** src = 0) const;
+    virtual void ExecuteSW(DICommandContext& context, ImageData& dest, ImageData** src = 0) const;
 };
 
 struct DICommand_PerlinNoise : public DICommandImpl<DICommand_PerlinNoise>
@@ -960,10 +938,90 @@ struct DICommand_PerlinNoise : public DICommandImpl<DICommand_PerlinNoise>
     }
 
     virtual DICommandType GetType() const { return DICommandType_PerlinNoise; }
-    virtual unsigned HasCPUImplementation() const { return true; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
 
     virtual void ExecuteSW(DICommandContext& context,
         ImageData& dest, ImageData** src = 0) const;
+};
+
+struct DICommand_PixelDissolve: public DICommandImpl<DICommand_PixelDissolve>
+{
+    Ptr<DrawableImage>      pSource;        // The source for the pixel dissolve operation (may be the same as the destination).
+    Rect<SInt32>            SourceRect;     // The source rectangle for the pixel dissolve operation.
+    Point<SInt32>           DestPoint;      // The destination point for the pixel dissolve operation.
+    unsigned                RandomSeed;     // The random seed value to compute the dissolve with.
+    unsigned                NumPixels;      // The number of pixels to be dissolved.
+    Color                   Fill;           // The color to dissolve to.
+    mutable unsigned*       Result;         // The value to pass into the next iteration of PixelDissolve.
+
+    DICommand_PixelDissolve(DrawableImage* image, DrawableImage* source,
+        const Rect<SInt32>& sourceRect, const Point<SInt32>& destPoint,
+        unsigned randomSeed, unsigned numPixels, Color fill, unsigned* result)
+        : DICommandImpl<DICommand_PixelDissolve>(image), pSource(source), 
+          SourceRect(sourceRect), DestPoint(destPoint), RandomSeed(randomSeed), NumPixels(numPixels), 
+          Fill(fill), Result(result)
+    {
+    }
+
+    virtual unsigned GetSourceImages(DISourceImages* ps) const
+    {
+        ps->pImages[0] = pSource;
+        return 1;
+    }
+
+    virtual DICommandType GetType() const { return DICommandType_PixelDissolve; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU | RC_CPU_Return; }
+
+    virtual void ExecuteSW(DICommandContext& context,
+        ImageData& dest, ImageData** src = 0) const;
+
+};
+
+struct DICommand_SetPixel32 : public DICommandImpl<DICommand_SetPixel32>
+{
+    UInt32                  X;              // X coordinate of the pixel to set.
+    UInt32                  Y;              // Y coordinate of the pixel to set.
+    Color                   Fill;           // The color to write to the given pixel.
+    bool                    OverwriteAlpha; // True if this command will overwrite the alpha value.
+    mutable bool            Result;
+
+    DICommand_SetPixel32(DrawableImage* image, UInt32 x, UInt32 y, Color fill, bool alpha)
+        : DICommandImpl<DICommand_SetPixel32>(image), X(x), Y(y), Fill(fill), OverwriteAlpha(alpha)
+    {
+    }
+
+    virtual DICommandType GetType() const { return DICommandType_SetPixel32; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
+
+    virtual void ExecuteSW(DICommandContext& context,
+        ImageData& dest, ImageData** src = 0) const;
+
+};
+
+struct DICommand_SetPixels : public DICommandImpl<DICommand_SetPixels>
+{
+    Rect<SInt32>        DestRect;       // The destination rectangle for the pixels
+    DIPixelProvider&    Provider;       // The object which will provide pixel values.
+    mutable bool*       Result;         // Set to false if the provider did not contain enough pixels to fill the rectangle.
+
+    DICommand_SetPixels(DrawableImage* image, Rect<SInt32> destRect, DIPixelProvider& provider, bool* result)
+        : DICommandImpl<DICommand_SetPixels>(image), DestRect(destRect), Provider(provider), Result(result)
+    {
+    }
+    DICommand_SetPixels& operator=(const DICommand_SetPixels& other)
+    {
+        DestRect = other.DestRect;
+        Provider = other.Provider;
+        Result = other.Result;
+        return *this;
+    }
+
+    virtual DICommandType GetType() const { return DICommandType_SetPixels; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU | RC_CPU_Return; }
+
+    virtual void ExecuteSW(DICommandContext& context,
+        ImageData& dest, ImageData** src = 0) const;
+
 };
 
 struct DICommand_Scroll : public DICommand_SourceRectImpl<DICommand_Scroll>
@@ -977,17 +1035,12 @@ struct DICommand_Scroll : public DICommand_SourceRectImpl<DICommand_Scroll>
         X(x), Y(y)
     { }
 
-    DICommand_Scroll(const DICommand_Scroll& other) :
-    DICommand_SourceRectImpl<DICommand_Scroll>(other),
-        X(other.X), Y(other.Y)
-    { }
-
     virtual DICommandType GetType() const { return DICommandType_Scroll; }
-    virtual unsigned HasCPUImplementation() const { return true; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
     // Note: does nothing, the copyback will handle the actual implementation
     virtual void ExecuteHWCopyAction( DICommandContext& context, Render::Texture** tex, const Matrix2F* texgen ) const;
     virtual bool GetRequireSourceRead() const { return true; };
-	virtual void ExecuteSW(DICommandContext& context, ImageData& dest, ImageData** src = 0) const;
+    virtual void ExecuteSW(DICommandContext& context, ImageData& dest, ImageData** src = 0) const;
 };
 
 struct DICommand_Threshold : public DICommand_SourceRectImpl<DICommand_Threshold>
@@ -1005,17 +1058,11 @@ struct DICommand_Threshold : public DICommand_SourceRectImpl<DICommand_Threshold
         Operation(op), Threshold(th), ThresholdColor(col), Mask(mask), CopySource(copySource)
     { }
 
-    DICommand_Threshold(const DICommand_Threshold& other) :
-        DICommand_SourceRectImpl<DICommand_Threshold>(other),
-        Operation(other.Operation), Threshold(other.Threshold), ThresholdColor(other.ThresholdColor), 
-        Mask(other.Mask), CopySource(other.CopySource)
-    { }
-
     virtual DICommandType GetType() const { return DICommandType_Threshold; }
-    virtual unsigned HasCPUImplementation() const { return true; }
+    virtual unsigned GetCPUCaps() const { return RC_CPU; }
     virtual void ExecuteHWCopyAction( DICommandContext& context, Render::Texture** tex, const Matrix2F* texgen ) const;
     virtual bool GetRequireSourceRead() const { return CopySource; };
-	virtual void ExecuteSW(DICommandContext& context, ImageData& dest, ImageData** src = 0) const;
+    virtual void ExecuteSW(DICommandContext& context, ImageData& dest, ImageData** src = 0) const;
 };
 
 }}; // namespace Scaleform::Render

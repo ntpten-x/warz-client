@@ -16,8 +16,13 @@ otherwise accompanies this software in either electronic or hard copy form.
 #include "Render/D3D9/D3D9_HAL.h"
 #include "Platform.h"
 #include <WinReg.h>
+#if SF_CC_MSVC < 1700
 #include <d3dx9tex.h>
+#endif
 #include <ShlObj.h>
+
+// Uncomment this to use a IDirect3DDevice9Ex device.
+//#define SF_D3D9_USE_D3D9EX
 
 namespace Scaleform { namespace Platform {
 
@@ -49,6 +54,8 @@ public:
 
     D3DRuntime detectD3DRuntime();
     D3DFORMAT determineFormat(const ViewConfig& config) const;
+    D3DFORMAT determineDepthStencilFormat(const ViewConfig& config) const;
+
     void      calcPresentParameters(D3DPRESENT_PARAMETERS* params, const ViewConfig& config);    
 
     bool adjustFullScreenRes(D3DFORMAT format, Size<unsigned>* size);
@@ -67,6 +74,9 @@ public:
 
     // D3D Variables
     HWND                    hWnd;
+#ifdef SF_D3D9_USE_D3D9EX
+    LPDIRECT3D9EX           pD3DEx;         // Used to create the D3D9DeviceEx.
+#endif // SF_D3D9_USE_D3D9EX
     LPDIRECT3D9             pD3D;           // Used to create the D3D9Device.
     LPDIRECT3DDEVICE9       pDevice;        // Our rendering device.
     D3DPRESENT_PARAMETERS   PresentParams;
@@ -78,12 +88,39 @@ public:
 DeviceImpl::DeviceImpl(Render::ThreadCommandQueue *commandQueue)
  : pWindow(0), pHal(0), Status(Device_NeedInit),
    hWnd(0),
+#ifdef SF_D3D9_USE_D3D9EX
+   pD3DEx(0),
+#endif
+   pD3D(0),
    pDevice(0),
    FSAASupported(false)   
 {
-    pD3D = Direct3DCreate9(SF_PLATFORM_D3D_SDK_VERSION); 
+    bool createD3D9Ex = false;
+
+#ifdef SF_D3D9_USE_D3D9EX
+    // Check to see whether Direct3DCreate9Ex is present in the runtime.
+    HMODULE libHandle = LoadLibraryA("d3d9.dll");
+    if (libHandle != 0)
+        createD3D9Ex = GetProcAddress( libHandle, "Direct3DCreate9Ex" ) != 0;
+
+    if (createD3D9Ex)
+    {
+        Direct3DCreate9Ex(SF_PLATFORM_D3D_SDK_VERSION, &pD3DEx);
+
+        // The D3DEx interface is a subclass of D3D, so it can be reused without changing other code,
+        // except for those places where it must be used explicitly for new functionality.
+        pD3D = pD3DEx;
+    }
+#endif
+
+    if (!createD3D9Ex)
+    {
+        pD3D = Direct3DCreate9(SF_PLATFORM_D3D_SDK_VERSION); 
+    }
+
+
     if (pD3D)
-        pHal = *SF_NEW Render::D3D9::HAL(commandQueue);
+        pHal = *SF_NEW Render::D3D9::ProfilerHAL(commandQueue);
 }
 
 DeviceImpl::~DeviceImpl()
@@ -129,7 +166,7 @@ D3DFORMAT DeviceImpl::determineFormat(const ViewConfig& config) const
         format = D3DFMT_X8R8G8B8;
 
     // Use 16-bit bit depth if requested and supported.
-    if (config.BitDepth == 16)
+    if (config.ColorBits== 16)
     {        
         if (pD3D->CheckDeviceType(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL,
                                   D3DFMT_R5G6B5, D3DFMT_R5G6B5, !fullScreen) == D3D_OK)
@@ -149,6 +186,46 @@ D3DFORMAT DeviceImpl::determineFormat(const ViewConfig& config) const
     return format;
 }
 
+D3DFORMAT DeviceImpl::determineDepthStencilFormat(const ViewConfig& config) const
+{
+    unsigned stencilBits = config.StencilBits == -1 ? 8 : config.StencilBits;
+    unsigned depthBits = config.DepthBits == -1 ? 24 : config.DepthBits;
+
+    bool stencilValid = stencilBits == 0 || stencilBits == 1 || stencilBits == 4 || stencilBits == 8;
+    SF_DEBUG_WARNING1(!stencilValid, "Stencil buffers must be either 0, 1, 4 or 8 bits (requested %d). Using 8-bit stencil.", stencilBits);
+    if (!stencilValid)
+        stencilBits = 8;    
+    bool depthValid = depthBits == 0 || depthBits == 15 || depthBits == 16 || depthBits == 24 || depthBits == 32;
+    SF_DEBUG_WARNING1(!depthValid, "Depth buffers must be either 0, 15, 16, 24 or 32 bits (requested %d). Using 24-bit depth.", depthBits);
+    if (!depthValid)
+        depthBits = 24;
+
+    // Figure out what possible formats we have, based on how many stencil bits are requested.
+    switch(stencilBits)
+    {
+    case 0:
+        switch(depthBits)
+        {
+        case 0:     return D3DFMT_UNKNOWN;                 // No depth or stencil.
+        case 16:    return D3DFMT_D16;
+        case 24:    return D3DFMT_D24X8;
+        case 32:    return D3DFMT_D32;
+        }
+        break;
+    case 1:
+        SF_DEBUG_WARNING1(depthBits != 15, "Requested D%dS1, but no matching format exists. Using D15S1.", depthBits);
+        return D3DFMT_D15S1;
+    case 4:
+        SF_DEBUG_WARNING1(depthBits != 24, "Requested D%dS4, but no matching format exists. Using D24X4S4.", depthBits);
+        return D3DFMT_D24X4S4;
+    case 8:
+        SF_DEBUG_WARNING1(depthBits != 24, "Requested D%dS8, but no matching format exists. Using D24S8.", depthBits);
+        return D3DFMT_D24S8;
+    }
+    SF_DEBUG_ASSERT(0, "Unhandled combination of depth/stencil bits.");
+    return D3DFMT_D24S8;
+}
+
 void DeviceImpl::calcPresentParameters(D3DPRESENT_PARAMETERS* params, const ViewConfig& config)
 {
     D3DFORMAT format = determineFormat(config);
@@ -160,8 +237,8 @@ void DeviceImpl::calcPresentParameters(D3DPRESENT_PARAMETERS* params, const View
 
     d3dpp.Windowed              = !fullScreen;
     d3dpp.BackBufferFormat      = format;
-    d3dpp.EnableAutoDepthStencil= 1;
-    d3dpp.AutoDepthStencilFormat= SF_PLATFORM_APP_DEPTHSTENCIL_FORMAT;
+    d3dpp.AutoDepthStencilFormat= determineDepthStencilFormat(config);
+    d3dpp.EnableAutoDepthStencil= d3dpp.AutoDepthStencilFormat != D3DFMT_UNKNOWN;
     d3dpp.BackBufferHeight      = config.ViewSize.Height;
     d3dpp.BackBufferWidth       = config.ViewSize.Width;
     d3dpp.PresentationInterval  = vsync ? D3DPRESENT_INTERVAL_ONE : D3DPRESENT_INTERVAL_IMMEDIATE;
@@ -308,6 +385,20 @@ bool DeviceImpl::initGraphics(const ViewConfig& config, Device::Window* window,
     }
 #endif
 
+#ifdef SF_D3D9_USE_D3D9EX
+    SF_DEBUG_WARNING(pD3DEx == 0, "SF_D3D9_USE_D3D9EX was defined, but D3D9Ex it is not available (running on Windows pre-Vista?).");
+
+    // Create the D3DDeviceEx.
+    IDirect3DDevice9Ex* pdevice;
+    if (!pD3DEx || FAILED(pD3DEx->CreateDeviceEx(adapterToUse, deviceType, hWnd,
+        vertexProcessing, &PresentParams, 0, &pdevice)))
+    {        
+        pWindow = 0;
+        hWnd = 0;
+        return false;
+    }
+    pDevice = pdevice;
+#else
     // Create the D3DDevice.
     if (FAILED(pD3D->CreateDevice(adapterToUse, deviceType, hWnd,
                                   vertexProcessing, &PresentParams, &pDevice)))
@@ -316,6 +407,7 @@ bool DeviceImpl::initGraphics(const ViewConfig& config, Device::Window* window,
         hWnd = 0;
         return false;
     }
+#endif
 
     // Configure renderer in "Dependent mode", honoring externally
     // configured device settings.
@@ -323,6 +415,8 @@ bool DeviceImpl::initGraphics(const ViewConfig& config, Device::Window* window,
     
     if (config.HasFlag(View_StaticBuffers))
         flags |= Render::D3D9::HALConfig_StaticBuffers;
+    if (config.HasFlag(View_ShaderModel20))
+        flags |= Render::D3D9::HALConfig_ShaderModel20;
 
 
     if (!pHal->InitHAL(Render::D3D9::HALInitParams(pDevice, PresentParams, flags, renderThreadId)))
@@ -441,6 +535,8 @@ bool Device::GraphicsConfigOnMainThread() const
     return true;
 }
 
+void Device::ResizeFrame(void*) { }
+    
 bool Device::AdjustViewConfig(ViewConfig* config)
 {
     return pImpl->adjustViewConfig(config);
@@ -475,7 +571,7 @@ void Device::Clear(UInt32 color)
     D3DVIEWPORT9 vp = { 0, 0, params.BackBufferWidth, params.BackBufferHeight, 0.0f, 0.0f };
     pImpl->pDevice->SetViewport(&vp);
     pImpl->pDevice->Clear(0, NULL, D3DCLEAR_TARGET, color, 1.0f, 0); // Normal
-    //pImpl->pDevice->Clear(0, NULL, D3DCLEAR_TARGET|D3DCLEAR_STENCIL, color, 1.0f, 255); // Debug Masks (dirty stencil)
+    pImpl->pDevice->Clear(0, NULL, D3DCLEAR_TARGET|D3DCLEAR_STENCIL, color, 1.0f, 255); // Debug Masks (dirty stencil)
 
     //pImpl->pDevice->SetViewport(&vps);
 }
@@ -505,11 +601,6 @@ void Device::BeginFrame()
 {
 }
 
-void Device::SetWireframe(bool flag)
-{
-    pImpl->pDevice->SetRenderState(D3DRS_FILLMODE, flag ? D3DFILL_WIREFRAME : D3DFILL_SOLID);
-}
-
 bool Device::TakeScreenShot(const String& filename)
 {
     pImpl->takeScreenShot(filename);
@@ -521,8 +612,10 @@ UInt32 Device::GetCaps() const
     return DeviceCap_Wireframe;
 }
 
+
 bool DeviceImpl::takeScreenShot(const String& filename)
 {
+	#if SF_CC_MSVC < 1700
     String actualFilename = filename;
     Ptr<IDirect3DSurface9> pbackBuffer;
     if ( FAILED( pDevice->GetRenderTarget(0, &pbackBuffer.GetRawRef()) ) )
@@ -558,6 +651,11 @@ bool DeviceImpl::takeScreenShot(const String& filename)
     HRESULT hr = D3DXSaveSurfaceToFileA(actualFilename, D3DXIFF_PNG, pbackBuffer, 0, 0 );
 
     return SUCCEEDED(hr);
+	#else
+
+	SF_UNUSED(filename);
+	return false;
+	#endif
 }
 
 }} // Scaleform::Platform

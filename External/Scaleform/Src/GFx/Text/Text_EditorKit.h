@@ -151,7 +151,7 @@ protected:
         Flags_Focused               = 0x400
     };
     Ptr<DocView>        pDocView;
-    Ptr<TextClipboard>  pClipboard;
+    Ptr<Clipboard>  pClipboard;
     Ptr<TextKeyMap>     pKeyMap;
 #ifndef SF_NO_IME_SUPPORT
     Ptr<CompositionString> pComposStr;
@@ -277,7 +277,7 @@ public:
     void OnKillFocus();
 
     DocView* GetDocument() const { return pDocView; }
-    void SetClipboard(TextClipboard* pclipbrd) { pClipboard = pclipbrd; }
+    void SetClipboard(Clipboard* pclipbrd) { pClipboard = pclipbrd; }
     void SetKeyMap(TextKeyMap* pkeymap)        { pKeyMap = pkeymap; }
 
     bool CalcCursorRectInLineBuffer
@@ -320,6 +320,9 @@ public:
     bool          SetRestrict(const String& restrStr);
     const String* GetRestrict() const;
     void          ClearRestrict();
+    // returns true, if wcharCode is ALLOWED (not restricted); false otherwise.
+    bool          CheckRestrict(wchar_t wcharCode) const;
+    bool          HasRestrict() const { return !!pRestrict; }
 
 #ifndef SF_NO_IME_SUPPORT
     // Composition string
@@ -388,14 +391,14 @@ public:
     void OnMouseDown(float , float , int ) {}
     void OnMouseUp(float , float , int ) {}
     void OnMouseMove(float , float ) {}
-    bool OnKeyDown(int code, const KeyModifiers& specKeysState) { return false; }
-    bool OnKeyUp(int code, const KeyModifiers& specKeysState)   { return false; }
+    bool OnKeyDown(int, const KeyModifiers&) { return false; }
+    bool OnKeyUp(int, const KeyModifiers&)   { return false; }
     bool OnChar(UInt32) { return false; }
     void OnSetFocus() {}
     void OnKillFocus() {}
 
     DocView* GetDocument() const { return 0; }
-    void SetClipboard(TextClipboard*) { }
+    void SetClipboard(Clipboard*) { }
     void SetKeyMap(TextKeyMap*)       { }
 
     bool CalcAbsCursorRectOnScreen(UPInt , RectF* , unsigned* = NULL, unsigned* = NULL)

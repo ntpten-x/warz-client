@@ -23,6 +23,7 @@ otherwise accompanies this software in either electronic or hard copy form.
 
 #include "Render/Render_FilterParams.h"
 #include "Render/Render_Twips.h"
+#include "Render/Render_DrawableImage.h"
 
 namespace Scaleform { namespace Render {
 
@@ -54,6 +55,9 @@ public:
     // Depending on parameters, filters may not produce any visible effect, but
     // still may be enabled. This function determines whether this is the case.
     virtual bool    IsContributing() const = 0;
+
+    // Filters may be able to cache across transformations, however, the ability depends on filter's behavior.
+    virtual bool    CanCacheAcrossTransform(bool deltaTrans, bool deltaRot, bool deltaScale) const = 0;
 
 protected:    
     FilterType Type;
@@ -111,6 +115,8 @@ public:
         Distance = distance;
         Params.Offset = BlurFilterParams::CalcOffsetByAngleDistance(angle, distance);
     }
+
+    virtual bool    CanCacheAcrossTransform(bool deltaTrans, bool deltaRot, bool deltaScale) const;
 
 protected:
     BlurFilterParams Params;
@@ -176,6 +182,7 @@ public:
 
     virtual Filter* Clone(MemoryHeap *heap = 0) const;
     virtual bool    IsContributing() const;
+    virtual bool    CanCacheAcrossTransform(bool deltaTrans, bool deltaRot, bool deltaScale) const;
 };
 
 class GlowFilter : public BlurFilterImpl
@@ -226,8 +233,6 @@ public:
     BevelFilter(const BlurFilterParams& params, float angle, float dist) :
         BlurFilterImpl(Filter_Bevel, params)
     {
-        // Force highlight mode for bevel, LoadFilters doesn't always set it apparently.
-        Params.Mode |= BlurFilterParams::Mode_Highlight;
         SetAngleDistance(angle, PixelsToTwips(dist));
     }
 
@@ -240,6 +245,26 @@ public:
 
     virtual Filter* Clone(MemoryHeap *heap = 0) const;
     virtual bool    IsContributing() const;
+    virtual bool    CanCacheAcrossTransform(bool deltaTrans, bool deltaRot, bool deltaScale) const;
+};
+
+class GradientFilter : public BlurFilterImpl
+{
+public:
+    GradientFilter(FilterType type, GradientData* gradient = 0,
+        float distance = 4.0f, float angle = SF_DEGTORAD(45.0f),
+        float blurx = 4.0f, float blury = 4.0f,  unsigned passes = 1);
+    GradientFilter(FilterType type, const BlurFilterParams& params, float angle, float dist);
+
+    virtual Filter* Clone(MemoryHeap *heap = 0) const;
+    virtual bool    IsContributing() const;
+    virtual bool    CanCacheAcrossTransform(bool deltaTrans, bool deltaRot, bool deltaScale) const;
+
+    Image*  GetGradientImage() const { return GradientImage; }
+    void    GenerateGradientImage(PrimitiveFillManager& mgr) const;
+
+protected:
+    mutable Ptr<Image>  GradientImage;
 };
 
 // ColorMatrixFilter represents a 4x5 color transform, applied as follows:
@@ -276,12 +301,59 @@ public:
     }
 
     virtual bool    IsContributing() const;
+    virtual bool    CanCacheAcrossTransform(bool, bool, bool deltaScale) const { return !deltaScale; }
 
 protected:
     float MatrixData[ColorMatrixEntries];
 };
 
 
+class CacheAsBitmapFilter : public Filter
+{
+public:
+    CacheAsBitmapFilter() : Filter(Filter_CacheAsBitmap) { }
+
+    virtual Filter* Clone(MemoryHeap * pheap= 0) const;
+
+    CacheAsBitmapFilter& operator=(const CacheAsBitmapFilter&)
+    {
+        return *this;
+    }
+    virtual bool    IsContributing() const { return true; }
+    virtual bool    CanCacheAcrossTransform(bool, bool, bool deltaScale) const { return !deltaScale; }
+};
+
+class DisplacementMapFilter : public Filter
+{
+public:
+    enum DisplacementMode
+    {
+        DisplacementMode_Wrap,      // Wraps the displacement value to the other side of the source image
+        DisplacementMode_Clamp,     // Clamps the displacement value to the edge of the source image.
+        DisplacementMode_Ignore,    // If the displacement value is out of range, ignores the displacement and uses the source pixel.
+        DisplacementMode_Color,     // If the displacement value is outside the image, substitutes the values in the color and alpha properties.
+        DisplacementMode_Count      // The number of modes.
+    };
+
+    DisplacementMapFilter(Render::Image* mapBitmap = 0, PointF mapPoint = PointF(0,0), 
+        DrawableImage::ChannelBits compx = DrawableImage::Channel_Red, 
+        DrawableImage::ChannelBits compy = DrawableImage::Channel_Red, 
+        DisplacementMode mode = DisplacementMode_Wrap,
+        float scaleX = 0.0f, float scaleY = 0.0f,
+        Color color = 0);
+
+    virtual bool    IsContributing() const;
+    virtual bool    CanCacheAcrossTransform(bool, bool, bool deltaScale) const { return !deltaScale; }
+    virtual Filter* Clone(MemoryHeap *heap = 0) const;
+
+    Ptr<Image>                  DisplacementMap;    // The image defining the displacement
+    PointF                      MapPoint;           // The offset into the displacement image
+    DrawableImage::ChannelBits  ComponentX;         // The channel to use for the X displacement
+    DrawableImage::ChannelBits  ComponentY;         // The channel to use for the Y displacement
+    DisplacementMode            Mode;               // The mode of displacement, when the coordinates are out-of-bounds
+    float                       ScaleX, ScaleY;     // The scaling to apply to the displacement map function.
+    Color                       ColorValue;         // The value to use if DisplacementMode_Color is used (alpha channel contains 'alpha' component).
+};
 
 //--------------------------------------------------------------------
 // FilterSet describes an array of filters that can be stored within a
@@ -300,27 +372,14 @@ public:
     bool    IsFrozen() const { return Frozen; }
     void    Freeze();
 
-    unsigned      GetFilterCount() const { return (unsigned)Filters.GetSize(); }
-    const Filter* GetFilter(UPInt index) const { return Filters[index].GetPtr(); }
-    void          SetFilter(UPInt index, Filter* filter)
-    { SF_ASSERT(!IsFrozen()); Filters[index] = filter; }
+    unsigned      GetFilterCount() const;
+    const Filter* GetFilter(UPInt index) const;
+    void          SetFilter(UPInt index, Filter* filter);
     
     // Filter array access
-    void          AddFilter(Filter* filter)
-    {
-        SF_ASSERT(!IsFrozen());
-        Filters.PushBack(filter);
-    }
-    void          InsertFilterAt(UPInt index, Filter* filter)
-    {
-        SF_ASSERT(!IsFrozen());
-        Filters.InsertAt(index, filter);
-    }
-    void          RemoveFilterAt(UPInt index)
-    {
-        SF_ASSERT(!IsFrozen());
-        Filters.RemoveAt(index);
-    }
+    void          AddFilter(Filter* filter);
+    void          InsertFilterAt(UPInt index, Filter* filter);
+    void          RemoveFilterAt(UPInt index);
 
     // Removes all copies of the filter from the set.
     void          RemoveFilter(Filter* filter);
@@ -330,6 +389,10 @@ public:
         return Filters;
     }
     
+    // Gets or Sets whether the FilterSet has cacheAsBitmap enabled.
+    bool          GetCacheAsBitmap() const;
+    void          SetCacheAsBitmap(bool enable);
+
     // Clones a filter set. If deepCopy == true, individual filters
     // are also cloned.
     FilterSet*    Clone(bool deepCopy = true, MemoryHeap *heap = 0) const;
@@ -337,9 +400,14 @@ public:
     // Returns true if any filter within the set contributes.
     bool          IsContributing() const;
 
+    // Determines whether the filter can cache itself across translation/
+    bool          CanCacheAcrossTransform(bool deltaTrans, bool deltaRot, bool deltaScale) const;
+
 protected:    
-    Array<Ptr<Filter> > Filters;
-    bool                Frozen;
+    Array<Ptr<Filter> >         Filters;
+    bool                        Frozen;
+    bool                        CacheAsBitmap;          // If true, the CacheAsBitmap property is set.
+    Ptr<CacheAsBitmapFilter>    pCacheAsBitmapFilter;   // Holds the CacheAsBitmap property for this FilterSet.
 };
 
 

@@ -17,17 +17,13 @@ otherwise accompanies this software in either electronic or hard copy form.
 
 #include "Kernel/SF_Debug.h"
 #include "Kernel/SF_Random.h"
-#include "Kernel/SF_HeapNew.h"
+#include "Kernel/SF_HeapNew.h"  
 #include "Kernel/SF_Debug.h"
 
+#include "Render/Render_TextureCacheGeneric.h"
+#include "Render/Render_BufferGeneric.h"
 #include "Render/GL/GL_HAL.h"
 #include "Render/GL/GL_Events.h"
-
-#ifdef SF_GL_BINARY_SHADERS
-#include <unistd.h>
-#include "Kernel/SF_SysFile.h"
-#endif
-
 
 namespace Scaleform { namespace Render { namespace GL {
 
@@ -35,19 +31,15 @@ namespace Scaleform { namespace Render { namespace GL {
 // ***** RenderHAL_GL
 
 HAL::HAL(ThreadCommandQueue* commandQueue)
-:   Render::HAL(commandQueue),
-    MultiBitStencil(1),
+:   Render::ShaderHAL<ShaderManager, ShaderInterface>(commandQueue),
     EnabledVertexArrays(-1),
     Cache(Memory::GetGlobalHeap(), MeshCacheParams::PC_Defaults),
-    SManager(&Profiler),
-    ShaderData(GetHAL()),
-    PrevBatchType(PrimitiveBatch::DP_None)
+    RSync(GetHAL()),
+    PrevBatchType(PrimitiveBatch::DP_None),
+    Caps(SManager.Caps),
+    MajorVersion(0), MinorVersion(0),
+    DeterminedDepthStencilFormat(false)
 {
-    Caps = 0;
-    memset(StaticShaders, 0, sizeof(StaticShaders));
-    memset(MappedXY16iUVTexture, 0, sizeof(MappedXY16iUVTexture));
-    memset(MappedXY16iAlphaTexture, 0, sizeof(MappedXY16iAlphaTexture));
-    memset(MappedXY16iAlphaSolid, 0, sizeof(MappedXY16iAlphaSolid));
 }
 
 HAL::~HAL()
@@ -55,255 +47,599 @@ HAL::~HAL()
     ShutdownHAL();
 }
 
+Render::RenderSync* HAL::GetRenderSync()
+{
+    // Only actually return the render sync object, if the MeshCache is using unsynchronized buffer updates. 
+    // Fencing is not useful otherwise, but it might have performance implications if used regardless. Returning 
+    // NULL from this function will act as though fencing is not supported.
+    if (Cache.GetBufferUpdateType() == MeshCache::BufferUpdate_MapBufferUnsynchronized)
+        return (Render::RenderSync*)(&RSync);
+    else
+        return 0;
+}
+
+// *** RenderHAL_GL Implementation
+
+bool HAL::InitHAL(const GL::HALInitParams& params)
+{
+    // Clear the error stack.
+    glGetError();
+
+#ifdef SF_GL_RUNTIME_LINK
+    Extensions::Init();
+#endif
+
+    // Check versions and extensions immediately, to make sure they are initialized.
+    CheckExtension(0);
+    CheckGLVersion(0,0);
+
+    // Check for GL capabilities.
+    Caps = 0;
+
+#if defined(SF_USE_GLES2)
+    const char *ren = (const char*) glGetString(GL_RENDERER);
+    const char *ven = (const char*) glGetString(GL_VENDOR);
+    
+    // Check for sync.
+    if (CheckExtension("GL_APPLE_sync"))
+        Caps |= Cap_Sync;
+
+    // Check for map buffer range (must have sync as well)
+    if ((Caps & Cap_Sync) && CheckExtension("GL_EXT_map_buffer_range"))
+        Caps |= Cap_MapBufferRange;
+
+    // Check for map buffer
+    if (CheckExtension("GL_OES_mapbuffer"))
+        Caps |= Cap_MapBuffer;
+    
+    // GLES2 has glBufferSubData built in.
+        Caps |= Cap_BufferUpdate;
+    
+    // Check for Vivante GPU and if found disable batching.
+	// TODO: Find out why batching doesn't work
+    if (!strncmp(ven, "Vivante", 7)) 
+        Caps |= Cap_NoBatching;
+
+    // Check for binary shaders, but do not use them on PowerVR or Vivante drivers.
+    if (CheckExtension("GL_OES_get_program_binary") && strncmp(ren, "PowerVR", 7) && strncmp(ven, "Vivante", 7))
+        Caps |= Cap_BinaryShaders;
+
+    // Check if derivatives (dFdx/dFdy) are not supported.
+    if (!CheckExtension("GL_OES_standard_derivatives"))
+        Caps |= Cap_NoDerivatives;
+    
+	// Force vertex alignment on GLES2 devices. Vertex alignment is preferred for performance reasons.
+	Caps |= MVF_Align;
+    
+#else
+    // OpenGL (desktop)
+    
+    // Check for binary shaders
+    if (CheckExtension("GL_ARB_get_program_binary"))
+        Caps |= Cap_BinaryShaders;
+
+    // Check for sync.
+    if (CheckExtension("GL_ARB_sync") && CheckGLVersion(3,1))
+        Caps |= Cap_Sync;
+        
+    // Check for map buffer range (must have sync as well)
+    // TODO: enable MapBufferRange update method on OpenGL, it currently does function as expected.
+    // Check that the things we need for MapBufferRange are available.
+    //if ((Caps & Cap_Sync) && CheckExtension("GL_ARB_map_buffer_range"))
+    //    Caps |= Cap_MapBufferRange;
+    
+    Caps |= Cap_BufferUpdate; // Part of GL 2.1 spec.
+    Caps |= Cap_MapBuffer;    // Part of GL 2.1 spec.
+    
+    Caps |= MVF_Align;        // Align for performance
+
+    // Check for instancing (glDrawElementsInstanced is available).
+    if ( (CheckGLVersion(3,0) || CheckExtension("GL_ARB_draw_instanced")) && !params.NoInstancing)
+        Caps |= Cap_Instancing;
+    
+#endif
+    
+    if (params.NoVAO)
+    {
+        Caps |= Cap_NoVAO;
+    }
+ 
+    // Call the base-initialization after the Caps have been initialized.
+    if ( !initHAL(params))
+        return false;
+
+    // If requested, turn on GL driver debugging messages (all of them).
+    if (params.ConfigFlags&HALConfig_DebugMessages)
+    {
+        if (CheckExtension("GL_ARB_debug_output") || CheckExtension("GL_KHR_debug"))
+        {
+            glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+            glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, 0, true);
+            glDebugMessageCallback((GLDEBUGPROC)DebugMessageCallback, 0);
+        }
+        else
+        {
+            SF_DEBUG_WARNING(1, "HALConfig_DebugMessages was specified in InitHALParams, but neither "
+                "GL_ARB_debug_output or GL_KHR_debug extensions are not available\n");
+        }
+    }
+
+    GLint maxUniforms = 128;
+#if defined(SF_USE_GLES2)
+    #if defined(GL_MAX_VERTEX_UNIFORM_VECTORS)
+        glGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &maxUniforms);
+    #endif
+#else
+    glGetIntegerv(GL_MAX_VERTEX_UNIFORM_COMPONENTS, &maxUniforms);
+#endif
+
+#if defined(SF_OS_ANDROID)
+    // Reports 128 uniforms but some drivers crash when more than 64 are used. The 544 experiences
+    // extreme corruption when using more than 32. These driver problems only seem to be present on 
+    // Android PVR chips, so handicap them for now (Vivante too it seems).
+    if (!strncmp(ren, "PowerVR SGX 5", 12))
+        maxUniforms = 64;
+    if (!strncmp(ren, "PowerVR SGX 544", 14) || !strncmp(ven, "Vivante", 7)) 
+        maxUniforms = 32;
+#endif
+
+    Caps |= maxUniforms << Cap_MaxUniforms_Shift;
+
+    // Disable the usage of texture density profile mode, if derivatives are not available.
+    if (Caps & Cap_NoDerivatives)
+        GetProfiler().SetModeAvailability((unsigned)(Profile_All & ~Profile_TextureDensity));
+
+    SManager.SetBinaryShaderPath(params.BinaryShaderPath);
+
+    GLint maxAttributes;
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxAttributes);
+
+    SF_DEBUG_MESSAGE1(1, "GL_VENDOR                   = %s\n", (const char*)glGetString(GL_VENDOR));
+    SF_DEBUG_MESSAGE1(1, "GL_VERSION                  = %s\n", (const char*)glGetString(GL_VERSION));
+    SF_DEBUG_MESSAGE1(1, "GL_RENDERER                 = %s\n", (const char*)glGetString(GL_RENDERER));
+    SF_DEBUG_MESSAGE1(1, "GL_SHADING_LANGUAGE_VERSION = %s\n", (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION));
+    SF_DEBUG_MESSAGE1(1, "GL_MAX_VERTEX_ATTRIBS       = %d\n", maxAttributes);
+    SF_DEBUG_MESSAGE1(1, "GL_EXTENSIONS               = %s\n", Extensions.ToCStr());
+    SF_DEBUG_MESSAGE1(1, "GL_CAPS                     = 0x%x\n", Caps);
+
+    // In GLES 2.0, print out the plane bit-depths.
+#if defined(SF_USE_GLES2)
+    GLint rgbaBits[4], stencilBits, depthBits;
+    glGetIntegerv(GL_RED_BITS, &rgbaBits[0]);
+    glGetIntegerv(GL_GREEN_BITS, &rgbaBits[1]);
+    glGetIntegerv(GL_BLUE_BITS, &rgbaBits[2]);
+    glGetIntegerv(GL_ALPHA_BITS, &rgbaBits[3]);
+    glGetIntegerv(GL_STENCIL_BITS, &stencilBits);
+    glGetIntegerv(GL_DEPTH_BITS, &depthBits);
+    SF_DEBUG_MESSAGE6(1, "GL_x_BITS                   = R%dG%dB%dA%d, D%dS%d\n", rgbaBits[0], rgbaBits[1], rgbaBits[2], rgbaBits[3], depthBits, stencilBits);
+#endif
+
+    pTextureManager = params.GetTextureManager();
+    if (!pTextureManager)
+    {
+        Ptr<TextureCacheGeneric> textureCache = 0;
+
+        // On GLES, create a texture cache, with the default size. Otherwise, do not use texture caching.
+#if defined(SF_USE_GLES_ANY)
+        textureCache = *SF_NEW TextureCacheGeneric();
+#endif
+        pTextureManager = 
+            *SF_HEAP_AUTO_NEW(this) TextureManager(params.RenderThreadId, pRTCommandQueue, textureCache);
+    }
+    pTextureManager->Initialize(this);
+
+    // Allocate our matrix state
+    Matrices = *SF_HEAP_AUTO_NEW(this) MatrixState(this);
+
+
+    pRenderBufferManager = params.pRenderBufferManager;
+    if (!pRenderBufferManager)
+    {
+        pRenderBufferManager = *SF_HEAP_AUTO_NEW(this) RenderBufferManagerGeneric();
+        if ( !pRenderBufferManager || !createDefaultRenderBuffer())
+        {
+            ShutdownHAL();
+            return false;
+        }
+    }
+
+    if (!SManager.Initialize(this, VMCFlags) ||
+        !Cache.Initialize(this))
+        return false;
+
+    HALState|= HS_ModeSet;    
+    notifyHandlers(HAL_Initialize);
+    return true;
+}
+
+// Returns back to original mode (cleanup)
+bool HAL::ShutdownHAL()
+{
+    if (!(HALState & HS_ModeSet))
+        return true;
+
+    if (!shutdownHAL())
+        return false;
+
+    destroyRenderBuffers();
+    pRenderBufferManager.Clear();
+    pTextureManager->ProcessQueues();
+    pTextureManager.Clear();
+    Cache.Reset();
+    SManager.Reset();
+
+    // Reset these, incase the HAL is started again with a different GL profile.
+    MajorVersion = 0;
+    MinorVersion = 0;
+    Extensions.Clear();
+
+    return true;
+}
+
+void HAL::initMatrices()
+{
+    // Allocate our matrix state
+    Matrices = *SF_HEAP_AUTO_NEW(this) MatrixState(this);
+}
+
+bool HAL::ResetContext()
+{
+    notifyHandlers(HAL_PrepareForReset);
+    pTextureManager->NotifyLostContext();
+    Cache.Reset(true);
+    SManager.Reset();
+    ShaderData.ResetContext();
+
+#ifdef SF_GL_RUNTIME_LINK
+    Extensions::Init();
+#endif
+
+    pTextureManager->Initialize(this);
+
+    if (!SManager.Initialize(this, VMCFlags))
+        return false;
+
+    if (!Cache.Initialize(this))
+        return false;
+
+    if (pRenderBufferManager)
+        pRenderBufferManager->Reset();
+
+    notifyHandlers(HAL_RestoreAfterReset);
+    return true;
+}
+
+
+// ***** Rendering
+
+bool HAL::BeginFrame()
+{
+    // Clear the error state.
+    glGetError();
+    return Render::HAL::BeginFrame();
+}
+
+// Set states not changed in our rendering, or that are reset after changes
+bool HAL::BeginScene()
+{
+    if ( !Render::HAL::BeginScene())
+        return false;
+
+    glDisable(GL_CULL_FACE);
+    glDisable(GL_DEPTH_TEST);
+    glStencilMask(0xffffffff);
+
+#if defined(GL_ALPHA_TEST)
+    if (!CheckGLVersion(3,0))
+        glDisable(GL_ALPHA_TEST);
+#endif
+
+    BlendEnable = -1;
+
+    if (!ShouldUseVAOs())
+    {
+        // Reset vertex array usage (in case it changed between frames).
+        EnabledVertexArrays = -1;
+        GLint va;
+        glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &va);
+        for (int i = 0; i < va; i++)
+            glDisableVertexAttribArray(i);
+    }
+    return true;
+}
+
+bool HAL::EndScene()
+{
+    if ( !Render::HAL::EndScene())
+        return false;
+
+    // Unbind the current VAO, so it doesn't get modified if this is an index buffer.
+    if (ShouldUseVAOs())
+    {
+        glBindVertexArray(0);
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glUseProgram(0);
+
+    return true;
+}
+
+
+void HAL::beginDisplay(BeginDisplayData* data)
+{
+    glDisable(GL_STENCIL_TEST);
+
+    Render::HAL::beginDisplay(data);
+}
+
+// Updates HW Viewport and ViewportMatrix based on provided viewport
+// and view rectangle.
+void HAL::updateViewport()
+{
+    Viewport vp;
+
+    if (HALState & HS_ViewValid)
+    {
+        int dx = ViewRect.x1 - VP.Left,
+            dy = ViewRect.y1 - VP.Top;
+
+        // Modify HW matrix and viewport to clip.
+        CalcHWViewMatrix(VP.Flags, &Matrices->View2D, ViewRect, dx, dy);
+        Matrices->SetUserMatrix(Matrices->User);
+        Matrices->ViewRect    = ViewRect;
+        Matrices->UVPOChanged = 1;
+
+        if ( HALState & HS_InRenderTarget )
+        {
+            glViewport(VP.Left, VP.Top, VP.Width, VP.Height);
+            glDisable(GL_SCISSOR_TEST);
+        }
+        else
+        {
+            vp = VP;
+            vp.Left     = ViewRect.x1;
+            vp.Top      = ViewRect.y1;
+            vp.Width    = ViewRect.Width();
+            vp.Height   = ViewRect.Height();
+            vp.SetStereoViewport(Matrices->S3DDisplay);
+            glViewport(vp.Left, VP.BufferHeight-vp.Top-vp.Height, vp.Width, vp.Height);
+            if (VP.Flags & Viewport::View_UseScissorRect)
+            {
+                glEnable(GL_SCISSOR_TEST);
+                glScissor(VP.ScissorLeft, VP.BufferHeight-VP.ScissorTop-VP.ScissorHeight, VP.ScissorWidth, VP.ScissorHeight);
+            }
+            else
+            {
+                glDisable(GL_SCISSOR_TEST);
+            }
+        }
+    }
+    else
+    {
+        glViewport(0,0,0,0);
+    }
+
+    // Workaround: it appears that when changing FBOs, the Tegra 3 will lose the current shader program
+    // binding, and crash when rendering the next primitive. updateViewport is always called when GFx changes
+    // FBOs, so, clear the cached shader program, so that next time it is requested, it will actually be set.
+    // This should only result in a minimal amount of redundant state-sets.
+    ShaderData.BeginScene();
+}
+
 void   HAL::MapVertexFormat(PrimitiveFillType fill, const VertexFormat* sourceFormat,
                             const VertexFormat** single,
                             const VertexFormat** batch, const VertexFormat** instanced, unsigned)
 {
-    // TODO: enable instancing
-    unsigned instancingFlag = 0 ; // (Caps&Cap_Instancing ? MVF_HasInstancing : 0);
+    unsigned instancingFlag = (Caps&Cap_Instancing ? MVF_HasInstancing : 0);
     SManager.MapVertexFormat(fill, sourceFormat, single, batch, instanced, (Caps&MVF_Align)| instancingFlag);
-#if defined(GL_ES_VERSION_2_0)
     if (Caps & Cap_NoBatching)
         *batch = 0;
+}
+
+void HAL::FinishFrame()
+{
+#if defined(SF_USE_GLES_ANY)
+    glFinish();
 #endif
 }
 
-PrimitiveFill*  HAL::CreatePrimitiveFill(const PrimitiveFillData &data)
+void HAL::applyDepthStencilMode(DepthStencilMode mode, unsigned stencilRef)
 {
-    return SF_HEAP_NEW(pHeap) PrimitiveFill(data);
-}
-
-// Draws a range of pre-cached and preprocessed primitives
-void        HAL::DrawProcessedPrimitive(Primitive* pprimitive,
-                                        PrimitiveBatch* pstart, PrimitiveBatch *pend)
-{
-    SF_AMP_SCOPE_RENDER_TIMER("HAL::DrawProcessedPrimitive", Amp_Profile_Level_High);
-    if (!checkState(HS_InDisplay, __FUNCTION__) ||
-        !pprimitive->GetMeshCount() )
-        return;
-
-    // If in overdraw profile mode, and this primitive is part of a mask, draw it in color mode.
-    static bool drawingMask = false;
-    if ( !Profiler.ShouldDrawMask() && !drawingMask && (HALState & HS_DrawingMask) )
+    ScopedRenderEvent GPUEvent(GetEvent(Event_ApplyDepthStencil), __FUNCTION__);
+    static GLenum DepthStencilCompareFunctions[DepthStencilFunction_Count] =
     {
-        drawingMask = true;
-        glColorMask(1,1,1,1);
-        glDisable(GL_STENCIL_TEST);
-        DrawProcessedPrimitive(pprimitive, pstart, pend );
-        glColorMask(0,0,0,0);
-        glEnable(GL_STENCIL_TEST);
-        drawingMask = false;
+        GL_NEVER,           // Ignore
+        GL_NEVER,           // Never
+        GL_LESS,            // Less
+        GL_EQUAL,           // Equal
+        GL_LEQUAL,          // LessEqual
+        GL_GREATER,         // Greater
+        GL_NOTEQUAL,        // NotEqual
+        GL_GEQUAL,          // GreaterEqual
+        GL_ALWAYS,          // Always
+    };
+    static GLenum StencilOps[StencilOp_Count] =
+    {
+        GL_KEEP,      // Ignore
+        GL_KEEP,      // Keep
+        GL_REPLACE,   // Replace
+        GL_INCR,      // Increment        
+    };
+
+    const HALDepthStencilDescriptor& oldState = DepthStencilModeTable[CurrentDepthStencilState];
+    const HALDepthStencilDescriptor& newState = DepthStencilModeTable[mode];
+
+    // Apply the modes now.
+    if (oldState.ColorWriteEnable != newState.ColorWriteEnable)
+    {
+        if (newState.ColorWriteEnable)
+            glColorMask(1,1,1,1);
+        else
+            glColorMask(0,0,0,0);
     }
 
-    SF_ASSERT(pend != 0);
-    
-    PrimitiveBatch* pbatch = pstart ? pstart : pprimitive->Batches.GetFirst();
+    if (oldState.StencilEnable != newState.StencilEnable)
+    {
+        if (newState.StencilEnable)
+            glEnable(GL_STENCIL_TEST);
+        else
+            glDisable(GL_STENCIL_TEST);
+    }
 
-    unsigned bidx = 0;
-    while (pbatch != pend)
-    {        
-        // pBatchMesh can be null in case of error, such as VB/IB lock failure.
-        MeshCacheItem* pmesh = (MeshCacheItem*)pbatch->GetCacheItem();
-        unsigned       meshIndex = pbatch->GetMeshIndex();
-        unsigned       batchMeshCount = pbatch->GetMeshCount();
+    // Only need to set stencil pass/fail ops if stenciling is actually enabled.
+    if (newState.StencilEnable)
+    {
+        // No redundancy checking on stencil ref/write mask.
+        glStencilFunc(DepthStencilCompareFunctions[newState.StencilFunction], stencilRef, 0XFF);
 
-        if (pmesh)
+        if ((oldState.StencilFailOp != newState.StencilFailOp &&
+            newState.StencilFailOp != HAL::StencilOp_Ignore) ||
+            (oldState.StencilPassOp != newState.StencilPassOp &&
+            newState.StencilPassOp!= HAL::StencilOp_Ignore) ||
+            (oldState.StencilZFailOp != newState.StencilZFailOp &&
+            newState.StencilZFailOp != HAL::StencilOp_Ignore))
         {
-            Profiler.SetBatch((UPInt)pprimitive, bidx);
-
-            unsigned fillFlags = FillFlags;
-            if ( batchMeshCount > 0 )
-                fillFlags |= pprimitive->Meshes[0].M.Has3D() ? FF_3DProjection : 0;
-
-            const ShaderManager::Shader& pShader =
-                SManager.SetPrimitiveFill(pprimitive->pFill, fillFlags, pbatch->Type, pbatch->pFormat, batchMeshCount, Matrices,
-                                          &pprimitive->Meshes[meshIndex], &ShaderData);
-
-            if ((HALState & HS_ViewValid) && pShader &&
-                SetVertexArray(pbatch->pFormat, pmesh->pVertexBuffer->GetBuffer(),
-                               pmesh->pVertexBuffer->GetBufferBase() + pmesh->VBAllocOffset))
-            {
-                SF_ASSERT((pbatch->Type != PrimitiveBatch::DP_Failed) &&
-                          (pbatch->Type != PrimitiveBatch::DP_Virtual) &&
-                          (pbatch->Type != PrimitiveBatch::DP_Instanced));
-
-
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pmesh->pIndexBuffer->GetBuffer());
-
-                // Make sure the blending state is correct.
-                int blend = (fillFlags & FF_Blending) ? 1 : 0;
-                if (blend != BlendEnable)
-                {
-                    if (blend)
-                        glEnable(GL_BLEND);
-                    else
-                        glDisable(GL_BLEND);
-                    BlendEnable = blend;
-                }
-                Profiler.SetFillFlags(fillFlags);
-
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pmesh->pIndexBuffer->GetBuffer());
-                // Draw the object with cached mesh.
-                if (pbatch->Type != PrimitiveBatch::DP_Instanced)
-                	drawIndexedPrimitive(pmesh->IndexCount, pmesh->MeshCount, pmesh->pIndexBuffer->GetBufferBase() + pmesh->IBAllocOffset);
-                else
-                	drawIndexedInstanced(pmesh->IndexCount, batchMeshCount, pmesh->pIndexBuffer->GetBufferBase() + pmesh->IBAllocOffset);
-            }
-
-            pmesh->MoveToCacheListFront(MCL_ThisFrame);
+            glStencilOp(StencilOps[newState.StencilFailOp], StencilOps[newState.StencilZFailOp], StencilOps[newState.StencilPassOp]);
         }
-
-        pbatch = pbatch->GetNext();
-        bidx++;
-    }
-}
-
-
-void HAL::DrawProcessedComplexMeshes(ComplexMesh* complexMesh,
-                                           const StrideArray<HMatrix>& matrices)
-{    
-    typedef ComplexMesh::FillRecord   FillRecord;
-    typedef PrimitiveBatch::BatchType BatchType;
-    
-    MeshCacheItem* pmesh = (MeshCacheItem*)complexMesh->GetCacheItem();
-    if (!checkState(HS_InDisplay, __FUNCTION__) || !pmesh)
-        return;
-    
-    // If in overdraw profile mode, and this primitive is part of a mask, draw it in color mode.
-    static bool drawingMask = false;
-    if ( !Profiler.ShouldDrawMask() && !drawingMask && (HALState & HS_DrawingMask) )
-    {
-        drawingMask = true;
-        glColorMask(1,1,1,1);
-        glDisable(GL_STENCIL_TEST);
-        DrawProcessedComplexMeshes(complexMesh, matrices);
-        glColorMask(0,0,0,0);
-        glEnable(GL_STENCIL_TEST);
-        drawingMask = false;
     }
 
-    const FillRecord* fillRecords = complexMesh->GetFillRecords();
-    unsigned    fillCount     = complexMesh->GetFillRecordCount();
-    unsigned    instanceCount = (unsigned)matrices.GetSize();
-    BatchType   batchType = PrimitiveBatch::DP_Single;
-    unsigned    formatIndex;
-    unsigned    maxDrawCount = 1;
-
-    if (instanceCount > 1 && SManager.HasInstancingSupport())
+    // If the value of depth test/write change, we may have to change the value of ZEnable.
+    if ((oldState.DepthTestEnable || oldState.DepthWriteEnable) != 
+        (newState.DepthTestEnable || newState.DepthWriteEnable))
     {
-        maxDrawCount = Alg::Min(instanceCount, Cache.GetParams().MaxBatchInstances);
-        batchType = PrimitiveBatch::DP_Instanced;
-        formatIndex = 1;
-    }
-    else
-    {
-        batchType = PrimitiveBatch::DP_Single;
-        formatIndex = 0;
-    }
+        if ((newState.DepthTestEnable || newState.DepthWriteEnable))
+            glEnable(GL_DEPTH_TEST);
+        else
+            glDisable(GL_DEPTH_TEST);
 
-    const Matrix2F* textureMatrices = complexMesh->GetFillMatrixCache();
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, pmesh->pIndexBuffer->GetBuffer());
-    ShaderData.BeginPrimitive();
-
-    for (unsigned fillIndex = 0; fillIndex < fillCount; fillIndex++)
-    {
-        const FillRecord& fr = fillRecords[fillIndex];
-
-        Profiler.SetBatch((UPInt)complexMesh, fillIndex);
-
-        unsigned fillFlags = FillFlags;
-        unsigned startIndex = 0;
-        if ( instanceCount > 0 )
+        // Only need to set the function, if depth testing is enabled.
+        if (newState.DepthTestEnable)
         {
-            const HMatrix& hm = matrices[0];
-            fillFlags |= hm.Has3D() ? FF_3DProjection : 0;
-
-            for (unsigned i = 0; i < instanceCount; i++)
+            if (oldState.DepthFunction != newState.DepthFunction &&
+                newState.DepthFunction != HAL::DepthStencilFunction_Ignore)
             {
-                const HMatrix& hm = matrices[startIndex + i];
-                Cxform finalCx = Profiler.GetCxform(hm.GetCxform());
-                if (!(finalCx == Cxform::Identity))
-                    fillFlags |= FF_Cxform;
-                if (finalCx.RequiresBlend())
-                    fillFlags |= FF_Blending;
+                glDepthFunc(DepthStencilCompareFunctions[newState.DepthFunction]);
             }
         }
+    }
 
-        // Apply fill.
-        PrimitiveFillType fillType = Profiler.GetFillType(fr.pFill->GetType());
-        const ShaderManager::Shader& pso = SManager.SetFill(fillType, fillFlags, batchType, fr.pFormats[formatIndex], &ShaderData);
-        SetVertexArray(fr.pFormats[formatIndex], pmesh->pVertexBuffer->GetBuffer(), pmesh->pVertexBuffer->GetBufferBase() + pmesh->VBAllocOffset + fr.VertexByteOffset);
+    if (oldState.DepthWriteEnable != newState.DepthWriteEnable)
+    {
+        glDepthMask(newState.DepthWriteEnable ? GL_TRUE : GL_FALSE);
+    }
 
-        UByte textureCount = fr.pFill->GetTextureCount();
-        bool solid = (fillType == PrimFill_None || fillType == PrimFill_Mask || fillType == PrimFill_SolidColor);
+    CurrentDepthStencilState = mode;
+}
 
-        int blend = ((fillFlags & FF_Blending) || fr.pFill->RequiresBlend()) ? 1 : 0;
-        if (blend != BlendEnable)
+bool HAL::checkDepthStencilBufferCaps()
+{
+    if (!StencilChecked)
+    {
+        GLint currentFBO;
+        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &currentFBO);
+
+        if (currentFBO != 0)
         {
-            if (blend)
-                glEnable(GL_BLEND);
+            GLint stencilType, stencilBits;
+            glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &stencilType);
+            if (stencilType == GL_NONE)
+            {
+                stencilBits = 0;
+            }
             else
-                glDisable(GL_BLEND);
-            BlendEnable = blend;
+            {
+                GLint stencilName;
+                glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &stencilName);
+                glBindRenderbuffer(GL_RENDERBUFFER, stencilName);
+                if (stencilType == GL_RENDERBUFFER)
+                    glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_STENCIL_SIZE, &stencilBits);
+                else
+                    stencilBits = 8;
+                glBindRenderbuffer(GL_RENDERBUFFER, 0);
+            }
+
+            if (stencilBits > 0)
+            {
+                StencilAvailable = true;
+                MultiBitStencil = (stencilBits > 1);
+            }
+
+            // Check for depth buffer.
+            GLint depthType, depthBits;
+            glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &depthType);
+            if (depthType == GL_NONE)
+            {
+                depthBits = 0;
+            }
+            else
+            {
+                GLint depthName;
+                glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &depthName);
+                glBindRenderbuffer(GL_RENDERBUFFER, depthName);
+                if (depthType == GL_RENDERBUFFER)
+                    glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_DEPTH_SIZE, &depthBits);
+                else
+                    depthBits = 8;
+                glBindRenderbuffer(GL_RENDERBUFFER, 0);
+            }
+            DepthBufferAvailable = (depthBits >= 1);
         }
-
-        Profiler.SetFillFlags(fillFlags);
-
-        for (unsigned i = 0; i < instanceCount; i++)
-        {            
-            const HMatrix& hm = matrices[startIndex + i];
-
-            ShaderData.SetMatrix(pso, Uniform::SU_mvp, complexMesh->GetVertexMatrix(), hm, Matrices, 0, i%maxDrawCount);
-            if (solid)
-                ShaderData.SetColor(pso, Uniform::SU_cxmul, Profiler.GetColor(fr.pFill->GetSolidColor()), 0, i%maxDrawCount);
-            else if (fillFlags & FF_Cxform)
-                ShaderData.SetCxform(pso, Profiler.GetCxform(hm.GetCxform()), 0, i%maxDrawCount);
-
-            for (unsigned tm = 0, stage = 0; tm < textureCount; tm++)
-            {
-                ShaderData.SetMatrix(pso, Uniform::SU_texgen, textureMatrices[fr.FillMatrixIndex[tm]], tm, i%maxDrawCount);
-                Texture* ptex = (Texture*)fr.pFill->GetTexture(tm);
-                ShaderData.SetTexture(pso, Uniform::SU_tex, ptex, fr.pFill->GetFillMode(tm), stage);
-                stage += ptex->GetPlaneCount();
-            }
-
-            ShaderData.Finish(0);
-
-            bool lastPrimitive = (i == instanceCount-1);
-            if ( batchType != PrimitiveBatch::DP_Instanced )
-            {
-                ShaderData.Finish(1);
-            	drawIndexedPrimitive(fr.IndexCount, 1, pmesh->pIndexBuffer->GetBufferBase() + pmesh->IBAllocOffset + sizeof(IndexType) * fr.IndexOffset);
-                AccumulatedStats.Primitives++;
-                if ( !lastPrimitive )
-                    ShaderData.BeginPrimitive();
-            }
-            else if (( (i+1) % maxDrawCount == 0 && i != 0) || lastPrimitive )
-            {
-                unsigned drawCount = maxDrawCount;
-                if ( lastPrimitive && (i+1) % maxDrawCount != 0)
-                    drawCount = (i+1) % maxDrawCount;
-                ShaderData.Finish(drawCount);
-            	drawIndexedInstanced(fr.IndexCount, drawCount, pmesh->pIndexBuffer->GetBufferBase() + pmesh->IBAllocOffset + sizeof(IndexType) * fr.IndexOffset);
-                AccumulatedStats.Primitives++;
-                if ( !lastPrimitive )
-                    ShaderData.BeginPrimitive();
-            }
+        else
+        {
+            // If we are using the default FBO, assume we have everything. TBD: this should be overridable in HALInitParams
+            StencilAvailable = true;
+            DepthBufferAvailable = true;
+            MultiBitStencil = true;
         }
-    } // for (fill record)
-  
-    pmesh->MoveToCacheListFront(MCL_ThisFrame);
+        StencilChecked = 1;
+    }   
+
+    SF_DEBUG_WARNONCE(!StencilAvailable && !DepthBufferAvailable, 
+        "RendererHAL::PushMask_BeginSubmit used, but neither stencil or depth buffer is available");
+    return (StencilAvailable || DepthBufferAvailable);
 }
+
+bool HAL::IsRasterModeSupported(RasterModeType mode) const
+{
+    SF_UNUSED(mode);
+#if !defined(SF_USE_GLES_ANY)
+    // OpenGL supports all.
+    return true;
+#else
+    // GLES supports none
+    return false;
+#endif
+}
+
+void HAL::applyRasterModeImpl(RasterModeType mode)
+{
+#if !defined(SF_USE_GLES_ANY)
+    GLenum fillMode;
+    switch(mode)
+    {
+        default:
+        case RasterMode_Solid:      fillMode = GL_FILL; break;
+        case RasterMode_Wireframe:  fillMode = GL_LINE; break;
+        case RasterMode_Point:      fillMode = GL_POINT; break;
+    }
+    glPolygonMode(GL_FRONT_AND_BACK, fillMode);
+#else
+    SF_UNUSED(mode);
+#endif
+}
+
 
 
 //--------------------------------------------------------------------
 // Background clear helper, expects viewport coordinates.
-void HAL::clearSolidRectangle(const Rect<int>& r, Color color)
+void HAL::clearSolidRectangle(const Rect<int>& r, Color color, bool blend)
 {
-    color = Profiler.GetClearColor(color);
-
-    if (color.GetAlpha() == 0xFF && !(VP.Flags & Viewport::View_Stereo_AnySplit))
+    if ((!blend || color.GetAlpha() == 0xFF) && !(VP.Flags & Viewport::View_Stereo_AnySplit))
     {
+        ScopedRenderEvent GPUEvent(GetEvent(Event_Clear), "HAL::clearSolidRectangle"); // NOTE: inside scope, base impl has its own profile.
+
         glEnable(GL_SCISSOR_TEST);
 
         PointF tl((float)(VP.Left + r.x1), (float)(VP.Top + r.y1));
@@ -312,7 +648,7 @@ void HAL::clearSolidRectangle(const Rect<int>& r, Color color)
         br = Matrices->Orient2D * br;
         Rect<int> scissor((int)Alg::Min(tl.x, br.x), (int)Alg::Min(tl.y,br.y), (int)Alg::Max(tl.x,br.x), (int)Alg::Max(tl.y,br.y));
         glScissor(scissor.x1, scissor.y1, scissor.Width(), scissor.Height());
-        glClearColor(color.GetRed() * 1.f/255.f, color.GetGreen() * 1.f/255.f, color.GetBlue() * 1.f/255.f, 1);
+        glClearColor(color.GetRed() * 1.f/255.f, color.GetGreen() * 1.f/255.f, color.GetBlue() * 1.f/255.f, color.GetAlpha() * 1.f/255.f);
         glClear(GL_COLOR_BUFFER_BIT);
 
         if (VP.Flags & Viewport::View_UseScissorRect)
@@ -327,220 +663,13 @@ void HAL::clearSolidRectangle(const Rect<int>& r, Color color)
     }
     else
     {
-        float colorf[4];
-        color.GetRGBAFloat(colorf, colorf+1, colorf+2, colorf+3);
-        Matrix2F m((float)r.Width(), 0.0f, (float)r.x1,
-                   0.0f, (float)r.Height(), (float)r.y1);
-
-        Matrix2F  mvp(m, Matrices->UserView);
-
-        unsigned fillflags = 0;
-        const ShaderManager::Shader& pso = SManager.SetFill(PrimFill_SolidColor, fillflags, PrimitiveBatch::DP_Single, &VertexXY16iInstance::Format, &ShaderData);
-        ShaderData.SetMatrix(pso, Uniform::SU_mvp, mvp);
-        ShaderData.SetUniform(pso, Uniform::SU_cxmul, colorf, 4);
-        ShaderData.Finish(1);
-
-        SetVertexArray(&VertexXY16iInstance::Format, Cache.MaskEraseBatchVertexBuffer, 0);
-        drawPrimitive(6,1);
+        BaseHAL::clearSolidRectangle(r, color, blend);
     }
 }
 
 //--------------------------------------------------------------------
 // *** Mask / Stencil support
 //--------------------------------------------------------------------
-
-// Mask support is implemented as a stack, enabling for a number of optimizations:
-//
-// 1. Large "Clipped" marks are clipped to a custom viewport, allowing to save on
-//    fill-rate when rendering both the mask and its content. The mask area threshold
-//    that triggers this behavior is determined externally.
-//      - Clipped masks can be nested, but not batched. When erased, clipped masks
-//        clear the clipped intersection area.
-// 2. Small masks can be Batched, having multiple mask areas with multiple mask
-//    content items inside.
-//      - Small masks can contain clipped masks either regular or clipped masks.
-// 3. Mask area dimensions are provided as HMatrix, which maps a unit rectangle {0,0,1,1}
-//    to a mask bounding rectangle. This rectangle can be rotated (non-axis aligned),
-//    allowing for more efficient fill.
-// 4. PopMask stack optimization is implemented that does not erase nested masks; 
-//    Stencil Reference value is changed instead. Erase of a mask only becomes
-//    necessary if another PushMask_BeginSubmit is called, in which case previous
-//    mask bounding rectangles are erased. This setup avoids often unnecessary erase 
-//    operations when drawing content following a nested mask.
-//      - To implement this MaskStack keeps a previous "stale" MaskPrimitive
-//        located above the MaskStackTop.
-
-
-void HAL::PushMask_BeginSubmit(MaskPrimitive* prim)
-{
-    if (!checkState(HS_InDisplay, __FUNCTION__))
-        return;
-
-    Profiler.SetDrawMode(1);
-
-    glColorMask(0,0,0,0);                       // disable framebuffer writes
-    glEnable(GL_STENCIL_TEST);
-
-    bool viewportValid = (HALState & HS_ViewValid) != 0;
-
-    // Erase previous mask if it existed above our current stack top.
-    if (MaskStackTop && (MaskStack.GetSize() > MaskStackTop) && viewportValid && MultiBitStencil)
-    {
-        glStencilFunc(GL_LEQUAL, MaskStackTop, 0xff);
-        glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-
-        MaskPrimitive* erasePrim = MaskStack[MaskStackTop].pPrimitive;
-        drawMaskClearRectangles(erasePrim->GetMaskAreaMatrices(), erasePrim->GetMaskCount());
-    }
-
-    MaskStack.Resize(MaskStackTop+1);
-    MaskStackEntry &e = MaskStack[MaskStackTop];
-    e.pPrimitive       = prim;
-    e.OldViewportValid = viewportValid;
-    e.OldViewRect      = ViewRect; // TBD: Must assign
-    MaskStackTop++;
-
-    HALState |= HS_DrawingMask;
-
-    if (prim->IsClipped() && viewportValid)
-    {
-        Rect<int> boundClip;
-
-        // Apply new viewport clipping.
-        if (!Matrices->OrientationSet)
-        {
-            const Matrix2F& m = prim->GetMaskAreaMatrix(0).GetMatrix2D();
-
-            // Clipped matrices are always in View coordinate space, to allow
-            // matrix to be use for erase operation above. This means that we don't
-            // have to do an EncloseTransform.
-            SF_ASSERT((m.Shx() == 0.0f) && (m.Shy() == 0.0f));
-            boundClip = Rect<int>(VP.Left + (int)m.Tx(), VP.Top + (int)m.Ty(),
-                                  VP.Left + (int)(m.Tx() + m.Sx()), VP.Top + (int)(m.Ty() + m.Sy()));
-        }
-        else
-        {
-            Matrix2F m = prim->GetMaskAreaMatrix(0).GetMatrix2D();
-            m.Append(Matrices->Orient2D);
-
-            RectF rect = m.EncloseTransform(RectF(0,0,1,1));
-            boundClip = Rect<int>(VP.Left + (int)rect.x1, VP.Top + (int)rect.y1,
-                                  VP.Left + (int)rect.x2, VP.Top + (int)rect.y2);
-        }
-
-        if (!ViewRect.IntersectRect(&ViewRect, boundClip))
-        {
-            ViewRect.Clear();
-            HALState &= ~HS_ViewValid;
-            viewportValid = false;
-        }
-        updateViewport();
-        
-        // Clear full viewport area, which has been resized to our smaller bounds.
-        if ((MaskStackTop == 1) && viewportValid)
-        {
-            glClearStencil(0);
-            glClear(GL_STENCIL_BUFFER_BIT);
-        }
-    }
-    else
-        if ((MaskStackTop == 1) && viewportValid)
-    {
-        glStencilFunc(GL_ALWAYS, 0, 0xff);
-        glStencilOp(GL_REPLACE, GL_REPLACE, GL_REPLACE);
-
-        drawMaskClearRectangles(prim->GetMaskAreaMatrices(), prim->GetMaskCount());
-
-        glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-    }
-
-    if (MultiBitStencil)
-    {
-        glStencilFunc(GL_EQUAL, MaskStackTop-1, 0xff);
-        glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
-    }
-    else if (MaskStackTop == 1)
-    {
-        glStencilFunc(GL_ALWAYS, 1, 0xff);
-        glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-    }
-    ++AccumulatedStats.Masks;
-}
-
-
-void HAL::EndMaskSubmit()
-{
-    Profiler.SetDrawMode(0);
-
-    if (!checkState(HS_InDisplay|HS_DrawingMask, __FUNCTION__))
-        return;
-
-    HALState &= ~HS_DrawingMask;    
-    SF_ASSERT(MaskStackTop);
-
-    glColorMask(1,1,1,1);
-    glStencilFunc(GL_LEQUAL, MaskStackTop, 0xff);
-    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-}
-
-
-void HAL::PopMask()
-{
-    if (!checkState(HS_InDisplay, __FUNCTION__))
-        return;
-
-    SF_ASSERT(MaskStackTop);
-    MaskStackTop--;
-
-    if (MaskStack[MaskStackTop].pPrimitive->IsClipped())
-    {
-        // Restore viewport
-        ViewRect      = MaskStack[MaskStackTop].OldViewRect;
-
-        if (MaskStack[MaskStackTop].OldViewportValid)
-            HALState |= HS_ViewValid;
-        else
-            HALState &= ~HS_ViewValid;
-        updateViewport();
-    }
-
-    if (MaskStackTop == 0)
-        glDisable(GL_STENCIL_TEST);
-    else
-        glStencilFunc(GL_LEQUAL, MaskStackTop, 0xff);
-}
-
-
-void HAL::drawMaskClearRectangles(const HMatrix* matrices, UPInt count)
-{
-    // This operation is used to clear bounds for masks.
-    // Potential issue: Since our bounds are exact, right/bottom pixels may not
-    // be drawn due to HW fill rules.
-    //  - This shouldn't matter if a mask is tessellated within bounds of those
-    //    coordinates, since same rules are applied to those render shapes.
-    //  - EdgeAA must be turned off for masks, as that would extrude the bounds.
-
-    unsigned fillflags = 0;
-    const ShaderManager::Shader& pso = SManager.SetFill(PrimFill_SolidColor, fillflags, PrimitiveBatch::DP_Batch, &VertexXY16iInstance::Format, &ShaderData);
-
-    unsigned drawRangeCount = 0;
-    for (UPInt i = 0; i < count; i+= (UPInt)drawRangeCount)
-    {
-        drawRangeCount = Alg::Min<unsigned>((unsigned)count, SF_RENDER_MAX_BATCHES);
-
-        for (unsigned j = 0; j < drawRangeCount; j++)
-        {
-            ShaderData.SetMatrix(pso, Uniform::SU_mvp, Matrix2F::Identity, matrices[i+j], Matrices, 0, j);
-        }
-        ShaderData.Finish(drawRangeCount);
-
-        SetVertexArray(&VertexXY16iInstance::Format, Cache.MaskEraseBatchVertexBuffer, 0);
-        drawPrimitive(drawRangeCount * 6, drawRangeCount);
-    }
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-}
-
 
 
 //--------------------------------------------------------------------
@@ -564,6 +693,7 @@ void HAL::applyBlendModeImpl(BlendMode mode, bool sourceAc, bool forceAc)
         GL_SRC_ALPHA,           // BlendFactor_SRCALPHA
         GL_ONE_MINUS_SRC_ALPHA, // BlendFactor_INVSRCALPHA
         GL_DST_COLOR,           // BlendFactor_DESTCOLOR
+        GL_ONE_MINUS_DST_COLOR, // BlendFactor_INVDESTCOLOR
     };
 
     GLenum sourceColor = BlendFactors[BlendModeTable[mode].SourceColor];
@@ -574,12 +704,21 @@ void HAL::applyBlendModeImpl(BlendMode mode, bool sourceAc, bool forceAc)
     {
         glBlendFuncSeparate(sourceColor, BlendFactors[BlendModeTable[mode].DestColor], 
             BlendFactors[BlendModeTable[mode].SourceAlpha], BlendFactors[BlendModeTable[mode].DestAlpha]);
+        glBlendEquationSeparate(BlendOps[BlendModeTable[mode].Operator], BlendOps[BlendModeTable[mode].AlphaOperator]);
     }
     else
     {
         glBlendFunc(sourceColor, BlendFactors[BlendModeTable[mode].DestColor]);
+        glBlendEquation(BlendOps[BlendModeTable[mode].Operator]);
     }
-    glBlendEquation(BlendOps[BlendModeTable[mode].Operator]);
+}
+
+void HAL::applyBlendModeEnableImpl(bool enabled)
+{
+    if (enabled)
+        glEnable(GL_BLEND);
+    else
+        glDisable(GL_BLEND);
 }
 
 RenderTarget* HAL::CreateRenderTarget(GLuint fbo)
@@ -602,7 +741,7 @@ RenderTarget* HAL::CreateRenderTarget(Render::Texture* texture, bool needsStenci
     if ( !pt || pt->TextureCount != 1 )
         return 0;
 
-    GLuint fboID = 0, dsbID = 0;
+    GLuint fboID = 0;
     RenderTarget* prt = pRenderBufferManager->CreateRenderTarget(
         texture->GetSize(), RBuffer_Texture, texture->GetFormat(), texture);
     if ( !prt )
@@ -613,8 +752,8 @@ RenderTarget* HAL::CreateRenderTarget(Render::Texture* texture, bool needsStenci
     SF_ASSERT(pt->TextureCount == 1); 
     GLuint colorID = pt->pTextures[0].TexId;
 
-    glGenFramebuffersEXT(1, &fboID);
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, fboID);
+    glGenFramebuffers(1, &fboID);
+    glBindFramebuffer(GL_FRAMEBUFFER, fboID);
     ++AccumulatedStats.RTChanges;
 
 #if defined(GL_ES_VERSION_2_0)
@@ -625,21 +764,13 @@ RenderTarget* HAL::CreateRenderTarget(Render::Texture* texture, bool needsStenci
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 #endif
-    
-    glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, colorID, 0);
+
+    // Bind the color buffer.
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorID, 0);
+
+    // Create (and bind) the depth/stencil buffers if required.
     if ( needsStencil )
-    {
-        pdsb = *pRenderBufferManager->CreateDepthStencilBuffer(texture->GetSize());
-        if ( pdsb )
-        {
-            DepthStencilSurface* surf = (GL::DepthStencilSurface*)pdsb->GetSurface();
-            if ( surf )
-            {
-                dsbID = surf->RenderBufferID;
-                glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, dsbID);
-            }
-        }
-    }
+        pdsb = *createCompatibleDepthStencil(texture->GetSize(), false);
 
     RenderTargetData::UpdateData(prt, this, fboID, pdsb);
     return prt;
@@ -658,15 +789,6 @@ RenderTarget* HAL::CreateTempRenderTarget(const ImageSize& size, bool needsStenc
     if ( phd && (!needsStencil || phd->pDepthStencilBuffer != 0 ))
         return prt;
 
-    Ptr<DepthStencilBuffer> pdsb = 0;
-    GLuint dsbID = 0;
-    if ( needsStencil )
-    {
-        pdsb = *pRenderBufferManager->CreateDepthStencilBuffer(size);
-        DepthStencilSurface* pdss = (DepthStencilSurface*)pdsb->GetSurface();
-        dsbID = pdss->RenderBufferID;
-    }
-
     // If only a new depth stencil is required.
     GLuint fboID;
     GLuint colorID = pt->pTextures[0].TexId;
@@ -674,9 +796,9 @@ RenderTarget* HAL::CreateTempRenderTarget(const ImageSize& size, bool needsStenc
     if ( phd )
         fboID = phd->FBOID;
     else
-        glGenFramebuffersEXT(1, &fboID);
+        glGenFramebuffers(1, &fboID);
 
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, fboID);
+    glBindFramebuffer(GL_FRAMEBUFFER, fboID);
     ++AccumulatedStats.RTChanges;
 
 #if defined(GL_ES_VERSION_2_0)
@@ -687,40 +809,14 @@ RenderTarget* HAL::CreateTempRenderTarget(const ImageSize& size, bool needsStenc
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 #endif
-    
-    glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, colorID, 0);
-    glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, dsbID);
 
-    // Some devices require that the depth buffer be attached, even if we don't use it.
-    if (GL::DepthStencilSurface::CurrentFormatHasDepth())
-        glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, dsbID);
+    // Bind the color buffer
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorID, 0);
 
-    // If this check fails, it means that the stencil format and color format are incompatible.
-    // In this case, we will need to try another depth stencil format combination.
-    GLenum framebufferStatusError;
-    while ((framebufferStatusError = glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT)) != GL_FRAMEBUFFER_COMPLETE_EXT)
-    {
-        SF_DEBUG_WARNING1(1,"glCheckFramebufferStatusEXT failed (code=0x%x)", framebufferStatusError);
-        pdsb = *pRenderBufferManager->CreateDepthStencilBuffer(size);
-        DepthStencilSurface* pdss = (DepthStencilSurface*)pdsb->GetSurface();
-        dsbID = pdss->RenderBufferID;        
-        glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, dsbID);
-
-        // Some devices require that the depth buffer be attached, even if we don't use it. If it was previously attached,
-        // and now our format does not have depth, we must remove it.
-        if (GL::DepthStencilSurface::CurrentFormatHasDepth())
-            glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, dsbID);
-        else
-            glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, 0);
-
-        if (!GL::DepthStencilSurface::SetNextGLFormatIndex())
-        {
-            SF_DEBUG_WARNING(1, "No compatible depth stencil formats available. Masking in filter will be disabled");
-            glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, 0);
-            pdsb = 0;
-            break;
-        }
-    }
+    // Create (and bind) the depth/stencil buffers if required.
+    Ptr<DepthStencilBuffer> pdsb = 0;
+    if ( needsStencil )
+        pdsb = *createCompatibleDepthStencil(size, true);
 
     RenderTargetData::UpdateData(prt, this, fboID, pdsb);
     return prt;
@@ -728,19 +824,19 @@ RenderTarget* HAL::CreateTempRenderTarget(const ImageSize& size, bool needsStenc
 
 bool HAL::SetRenderTarget(RenderTarget* ptarget, bool setState)
 {
-    // Cannot set the bottom level render target if already in display.
-    if ( HALState & HS_InDisplay )
-        return false;
-
     // When changing the render target while in a scene, we must flush all drawing.
     if ( HALState & HS_InScene)
         Flush();
+
+    // Cannot set the bottom level render target if already in display.
+    if ( HALState & HS_InDisplay )
+        return false;
 
     RenderTargetEntry entry;
     if ( setState )
     {
         RenderTargetData* phd = (RenderTargetData*)ptarget->GetRenderTargetData();
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, phd->FBOID);
+        glBindFramebuffer(GL_FRAMEBUFFER, phd->FBOID);
     }
 
     entry.pRenderTarget = ptarget;
@@ -753,7 +849,7 @@ bool HAL::SetRenderTarget(RenderTarget* ptarget, bool setState)
     return true;   
 }
 
-void HAL::PushRenderTarget(const RectF& frameRect, RenderTarget* prt, unsigned flags)
+void HAL::PushRenderTarget(const RectF& frameRect, RenderTarget* prt, unsigned flags, Color clearColor)
 {
     // Setup the render target/depth stencil on the device.
     HALState |= HS_InRenderTarget;
@@ -775,7 +871,8 @@ void HAL::PushRenderTarget(const RectF& frameRect, RenderTarget* prt, unsigned f
         return;
     }
     RenderTargetData* phd = (GL::RenderTargetData*)prt->GetRenderTargetData();
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, phd->FBOID);
+    glBindFramebuffer(GL_FRAMEBUFFER, phd->FBOID);
+    StencilChecked = false;
     ++AccumulatedStats.RTChanges;
 
     glDisable(GL_SCISSOR_TEST);
@@ -783,7 +880,9 @@ void HAL::PushRenderTarget(const RectF& frameRect, RenderTarget* prt, unsigned f
     // Clear, if not specifically excluded
     if ( (flags & PRT_NoClear) == 0 )
     {
-        glClearColor(0,0,0,0);
+        float clear[4];
+        clearColor.GetRGBAFloat(clear);
+        glClearColor(clear[0], clear[1], clear[2], clear[3]);
         glClear(GL_COLOR_BUFFER_BIT);
     }
 
@@ -808,30 +907,25 @@ void HAL::PushRenderTarget(const RectF& frameRect, RenderTarget* prt, unsigned f
     RenderTargetStack.PushBack(entry);
 }
 
-void HAL::PopRenderTarget(unsigned)
+void HAL::PopRenderTarget(unsigned flags)
 {
     RenderTargetEntry& entry = RenderTargetStack.Back();
     RenderTarget* prt = entry.pRenderTarget;
-    prt->SetInUse(false);
     if ( prt->GetType() == RBuffer_Temporary )
     {
         // Strip off the depth stencil surface/buffer from temporary targets.
         GL::RenderTargetData* plasthd = (GL::RenderTargetData*)prt->GetRenderTargetData();
         if ( plasthd->pDepthStencilBuffer )
         {
-            glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, plasthd->FBOID);
+            glBindFramebuffer(GL_FRAMEBUFFER, plasthd->FBOID);
             ++AccumulatedStats.RTChanges;
-            glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, 0);
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
         }
         plasthd->pDepthStencilBuffer = 0;
     }
     Matrices->CopyFrom(&entry.OldMatrixState);
     ViewRect = entry.OldViewRect;
     VP = entry.OldViewport;
-
-    // Must reverse the offset of the 'original' viewrect.
-    Matrices->ViewRectOriginal.Offset(entry.OldViewport.Left, entry.OldViewport.Top);
-    Matrices->UVPOChanged = true;
 
     RenderTargetStack.PopBack();
     RenderTargetData* phd = 0;
@@ -847,31 +941,75 @@ void HAL::PopRenderTarget(unsigned)
         HALState &= ~HS_InRenderTarget;
 
     // Restore the old render target.
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, fboID);
-    ++AccumulatedStats.RTChanges;
+    if ((flags & PRT_NoSet) == 0)
+    {
+        glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+        ++AccumulatedStats.RTChanges;
 
-    // Reset the viewport to the last render target on the stack.
-    HALState |= HS_ViewValid;
-    updateViewport();
+        // Reset the viewport to the last render target on the stack.
+        HALState |= HS_ViewValid;
+        updateViewport();
+    }
+}
+
+bool HAL::CheckExtension(const char *name)
+{
+    if (Extensions.IsEmpty())
+    {
+#if defined(SF_USE_GLES_ANY) || !defined(GL_VERSION_3_0)
+        Extensions = (const char *) glGetString(GL_EXTENSIONS);
+#else
+        if (!CheckGLVersion(3,0))
+            Extensions = (const char*)glGetString(GL_EXTENSIONS);
+        else
+        {
+            GLint extCount;
+            glGetIntegerv(GL_NUM_EXTENSIONS, &extCount);
+            for (int extIndex = 0; extIndex < extCount; ++extIndex)
+            {
+                const char* ext = (const char*)glGetStringi(GL_EXTENSIONS, extIndex);
+                Extensions += " ";
+                Extensions += ext;
+            }
+        }
+#endif
+        // Add space, just so we know it is initialized.
+        Extensions += " "; 
+    }
+
+    if (name == 0)
+        return false;
+    const char *p = strstr(Extensions.ToCStr(), name);
+    return (p && (p[strlen(name)] == 0 || p[strlen(name)] == ' '));
+}
+
+bool HAL::CheckGLVersion(unsigned reqMajor, unsigned reqMinor)
+{
+    if (MajorVersion == 0 && MinorVersion == 0)
+    {
+        const char* version = (const char*)glGetString(GL_VERSION);
+        SFsscanf(version, "%d.%d", &MajorVersion, &MinorVersion);
+    }
+    return (MajorVersion > reqMajor || (MajorVersion == reqMajor && MinorVersion >= reqMinor));
 }
 
 ImageSize HAL::getFboInfo(GLint fbo, GLint& currentFBO, bool useCurrent)
 {
-    glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &currentFBO);
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &currentFBO);
     if (!useCurrent)
     {
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, fbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
         ++AccumulatedStats.RTChanges;
     }
 
-    bool validFBO = glIsFramebufferEXT( fbo ) ? true : false;
+    bool validFBO = glIsFramebuffer( fbo ) ? true : false;
     GLint width = 0, height = 0;
     GLint type, id;
 
     if ( validFBO )
     {
-        glGetFramebufferAttachmentParameterivEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE_EXT, &type );
-        glGetFramebufferAttachmentParameterivEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME_EXT, &id );
+        glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_TYPE, &type );
+        glGetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &id );
         switch(type)
         {
         case GL_TEXTURE:
@@ -883,12 +1021,12 @@ ImageSize HAL::getFboInfo(GLint fbo, GLint& currentFBO, bool useCurrent)
 #endif
                 break;
             }
-        case GL_RENDERBUFFER_EXT:
-            if ( !glIsRenderbufferEXT( id ) )
+        case GL_RENDERBUFFER:
+            if ( !glIsRenderbuffer( id ) )
                 break;
-            glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, id);
-            glGetRenderbufferParameterivEXT(GL_RENDERBUFFER_EXT, GL_RENDERBUFFER_WIDTH_EXT, &width );
-            glGetRenderbufferParameterivEXT(GL_RENDERBUFFER_EXT, GL_RENDERBUFFER_HEIGHT_EXT, &height );
+            glBindRenderbuffer(GL_RENDERBUFFER, id);
+            glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_WIDTH, &width );
+            glGetRenderbufferParameteriv(GL_RENDERBUFFER, GL_RENDERBUFFER_HEIGHT, &height );
             break;
         }
     }
@@ -904,11 +1042,76 @@ ImageSize HAL::getFboInfo(GLint fbo, GLint& currentFBO, bool useCurrent)
 
     if (!useCurrent)
     {
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, currentFBO);
+        glBindFramebuffer(GL_FRAMEBUFFER, currentFBO);
         ++AccumulatedStats.RTChanges;
     }
 
     return ImageSize(width, height);
+}
+
+DepthStencilBuffer* HAL::createCompatibleDepthStencil(const ImageSize& size, bool temporary)
+{
+    GLuint dsbID = 0;
+
+    // NOTE: until the HAL has successfully created compatible depth stencil buffer, it creates
+    // 'user' depth stencil buffers, as these will not be reused. If we happen to create incompatible
+    // ones, when trying to locate a compatible format, we don't want them to be destroyed.
+    DepthStencilBuffer* pdsb = pRenderBufferManager->CreateDepthStencilBuffer(size, temporary && DeterminedDepthStencilFormat);
+    DepthStencilSurface* pdss = (DepthStencilSurface*)pdsb->GetSurface();
+    dsbID = pdss->RenderBufferID;
+
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, dsbID);
+
+    // Some devices require that the depth buffer be attached, even if we don't use it.
+    if (GL::DepthStencilSurface::CurrentFormatHasDepth())
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, dsbID);
+
+    // If this check fails, it means that the stencil format and color format are incompatible.
+    // In this case, we will need to try another depth stencil format combination.
+    GLenum framebufferStatusError;
+    while ((framebufferStatusError = glCheckFramebufferStatus(GL_FRAMEBUFFER)) != GL_FRAMEBUFFER_COMPLETE)
+    {
+        if (!GL::DepthStencilSurface::SetNextGLFormatIndex())
+        {
+            SF_DEBUG_WARNING(1, "No compatible depth stencil formats available. Masking in filter will be disabled");
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
+            pdsb = 0;
+            break;
+        }
+
+        pdsb = pRenderBufferManager->CreateDepthStencilBuffer(size, temporary && DeterminedDepthStencilFormat);
+        DepthStencilSurface* pdss = (DepthStencilSurface*)pdsb->GetSurface();
+        dsbID = pdss->RenderBufferID;        
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, dsbID);
+
+        // Some devices require that the depth buffer be attached, even if we don't use it. If it was previously attached,
+        // and now our format does not have depth, we must remove it.
+        if (GL::DepthStencilSurface::CurrentFormatHasDepth())
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, dsbID);
+        else
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);
+    }
+
+    // If a complete framebuffer was found, then indicate that the depth/stencil format has been determined.
+    if (framebufferStatusError == GL_FRAMEBUFFER_COMPLETE)
+        DeterminedDepthStencilFormat = true;
+
+    return pdsb;
+}
+
+bool HAL::ShouldUseVAOs()
+{
+    // If we are not using VBOs, then we cannot use VAOs.
+    if ((GetMeshCache().GetBufferUpdateType() == MeshCache::BufferUpdate_ClientBuffers) )
+        return false;
+
+#if !defined(SF_USE_GLES_ANY) && defined(GL_VERSION_3_0)
+    // OpenGL 3.0+ should use it, unless specifically disabled, or using client buffers
+    return CheckGLVersion(3,0) && !(GetHAL()->Caps & Cap_NoVAO);
+#else
+    // All other GL should not.
+    return false;
+#endif
 }
 
 bool HAL::createDefaultRenderBuffer()
@@ -938,419 +1141,16 @@ bool HAL::createDefaultRenderBuffer()
     return pRenderBufferManager->Initialize(pTextureManager, Image_R8G8B8A8, rtSize );
 }
 
-void HAL::PushFilters(FilterPrimitive* prim)
-{
-    if (!checkState(HS_InDisplay, __FUNCTION__))
-        return;
-
-    FilterStackEntry e = {prim, 0};
-
-    // Do not render filters if the profile does not support it (unfiltered content will be rendered).
-    if (!shouldRenderFilters(prim))
-    {
-        FilterStack.PushBack(e);
-        return;
-    }
-
-    // Queue the profiler off of whether masks should be draw or not.
-    if ( !Profiler.ShouldDrawMask() )
-    {
-        Profiler.SetDrawMode(2);
-
-        unsigned fillflags = 0;
-        float colorf[4];
-        Profiler.GetColor(0xFFFFFFFF).GetRGBAFloat(colorf);
-        const ShaderManager::Shader& pso = SManager.SetFill(PrimFill_SolidColor, fillflags, 
-            PrimitiveBatch::DP_Single, &VertexXY16iInstance::Format, &ShaderData);
-        Matrix2F mvp(prim->GetFilterAreaMatrix().GetMatrix2D(), Matrices->UserView);
-        ShaderData.SetMatrix(pso, Uniform::SU_mvp, mvp);
-        ShaderData.SetUniform(pso, Uniform::SU_cxmul, colorf, 4);
-        ShaderData.Finish(1);
-
-        SetVertexArray(&VertexXY16iInstance::Format, Cache.MaskEraseBatchVertexBuffer, 0);
-        drawPrimitive(6,1);
-        FilterStack.PushBack(e);
-        return;
-    }
-
-    if ( (HALState & HS_CachedFilter) )
-    {
-        FilterStack.PushBack(e);
-        return;
-    }
-
-    // Disable masking from previous target, if this filter primitive doesn't have any masking.
-    if ( MaskStackTop != 0 && !prim->GetMaskPresent() && prim->GetCacheState() != FilterPrimitive::Cache_Target)
-    {
-        glDisable(GL_STENCIL_TEST);
-    }
-
-    HALState |= HS_DrawingFilter;
-
-    if ( prim->GetCacheState() ==  FilterPrimitive::Cache_Uncached )
-    {
-        // Draw the filter from scratch.
-        const Matrix2F& m = e.pPrimitive->GetFilterAreaMatrix().GetMatrix2D();
-            e.pRenderTarget = *CreateTempRenderTarget(ImageSize((UInt32)m.Sx(), (UInt32)m.Sy()), prim->GetMaskPresent());
-        RectF frameRect(m.Tx(), m.Ty(), m.Tx() + m.Sx(), m.Ty() + m.Sy());
-        PushRenderTarget(frameRect, e.pRenderTarget);
-        applyBlendMode(BlendModeStack.GetSize()>=1 ? BlendModeStack.Back() : Blend_Normal, false, true);
-
-        // If this primitive has masking, then clear the entire area to the current mask level, because 
-        // the depth stencil target may be different, and thus does not contain the previously written values.
-        if ( prim->GetMaskPresent())
-        {
-            glClearStencil(MaskStackTop);
-            glClear(GL_STENCIL_BUFFER_BIT);
-        }
-    }
-    else
-    {
-        // Drawing a cached filter, ignore all draw calls until the corresponding PopFilters.
-        // Keep track of the level at which we need to draw the cached filter, by adding entries to the stack.
-        HALState |= HS_CachedFilter;
-        CachedFilterIndex = (int)FilterStack.GetSize();
-        GetRQProcessor().SetQueueEmitFilter(RenderQueueProcessor::QPF_Filters);
-    }
-    FilterStack.PushBack(e);
-}
-
 void HAL::drawUncachedFilter(const FilterStackEntry& e)
 {
-    const FilterSet* filters = e.pPrimitive->GetFilters();
-    unsigned filterCount = filters->GetFilterCount();
-    const Filter* filter = 0;
-    unsigned pass = 0, passes = 0;
-
-    // Invalid primitive or rendertarget.
-    if ( !e.pPrimitive || !e.pRenderTarget )
-        return;
-
-    // Bind the render target.
-    SF_ASSERT(RenderTargetStack.Back().pRenderTarget == e.pRenderTarget);
-    const unsigned MaxTemporaryTextures = 3;
-    Ptr<RenderTarget> temporaryTextures[MaxTemporaryTextures];
-    memset(temporaryTextures, 0, sizeof temporaryTextures);
-
-    // Fill our the source target.
-    ImageSize size = e.pRenderTarget->GetSize();
-    temporaryTextures[0] = e.pRenderTarget;
-
-    glColorMask(1,1,1,1);
     FilterVertexBufferSet = 0;
-
-    glDisable(GL_SCISSOR_TEST);
-
-    // Overlay mode isn't actually supported, it contains the blend mode for filter sub-targets.
-    applyBlendMode(Blend_Overlay, true, false);
-
-    // Render filter(s).
-    unsigned shaders[ShaderManager::MaximumFilterPasses];
-    BlurFilterState LEBlurState (8);
-
-    for ( unsigned i = 0; i < filterCount; ++i )
-    {
-        filter = filters->GetFilter(i);
-        passes = SManager.SetupFilter(filter, FillFlags, shaders, LEBlurState);
-
-        // All shadows (except those hiding the object) need the original texture.
-        bool requireSource = false;
-        if ( filter->GetFilterType() >= Filter_Shadow &&
-             filter->GetFilterType() <= Filter_Blur_End &&
-             !(((BlurFilterImpl*)filter)->GetParams().Mode & BlurFilterParams::Mode_HideObject) )
-        {
-            temporaryTextures[Target_Original] = temporaryTextures[Target_Source];
-            requireSource = true;
-        }
-
-        // Now actually render the filter.
-        for (pass = 0; pass < passes; ++pass)
-        {
-            // Render the final pass directly to the target surface.
-            if (pass == passes-1 && i == filterCount-1)
-                break;
-
-            // Create a destination texture if required.
-            if ( !temporaryTextures[1] )
-            {
-                temporaryTextures[1] = *CreateTempRenderTarget(size, false);
-            }
-
-            GLuint fboid = ((GL::RenderTargetData*)temporaryTextures[1]->GetRenderTargetData())->FBOID;
-            glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, fboid );
-            ++AccumulatedStats.RTChanges;
-            glClearColor(0,0,0,0);
-            glClear(GL_COLOR_BUFFER_BIT);
-            
-            // Scale to the size of the destination.
-            RenderTarget* prt = temporaryTextures[1];
-            const Rect<int>& viewRect = prt->GetRect(); // On the render texture, might not be the entire surface.
-            const ImageSize& bs = prt->GetBufferSize();
-            VP = Viewport(bs.Width, bs.Height, viewRect.x1, viewRect.y1, viewRect.Width(), viewRect.Height());    
-            ViewRect = Rect<int>(viewRect.x1, viewRect.y1, viewRect.x2, viewRect.y2);
-            HALState |= HS_ViewValid;
-            updateViewport();
-
-            Matrix2F mvp = Matrix2F::Scaling(2,2) * Matrix2F::Translation(-0.5f, -0.5f);                          
-            DrawFilter(mvp, Cxform::Identity, filter, temporaryTextures, shaders, pass, passes, 
-                MappedXY16iUVTexture[PrimitiveBatch::DP_Single], LEBlurState, false);
-
-            // If we require the original source, create a new target for the source.
-            if ( requireSource && pass == 0)
-                temporaryTextures[0] = *CreateTempRenderTarget(size, false);
-
-            // Setup for the next pass.
-            Alg::Swap(temporaryTextures[0], temporaryTextures[1]);
-        }
-    }
-
-	if (Profiler.IsFilterCachingEnabled() && temporaryTextures[Target_Source])
-	{
-	    // Cache the 2nd last step so it might be available as a cached filter next time.
-		RenderTarget* cacheResults[2] = { temporaryTextures[0], temporaryTextures[2] };
-		e.pPrimitive->SetCacheResults(FilterPrimitive::Cache_PreTarget, cacheResults, 2);
-		((GL::RenderTargetData*)cacheResults[0]->GetRenderTargetData())->CacheID = reinterpret_cast<UPInt>(e.pPrimitive.GetPtr());
-		if ( cacheResults[1] )
-			((GL::RenderTargetData*)cacheResults[1]->GetRenderTargetData())->CacheID = reinterpret_cast<UPInt>(e.pPrimitive.GetPtr());
-	}
-
-    // Pop the temporary target, begin rendering to the previous surface.
-    PopRenderTarget();
-
-    // Re-[en/dis]able masking from previous target, if available.
-    if ( MaskStackTop != 0 )
-        glEnable(GL_STENCIL_TEST);
-
-    // Now actually draw the filtered sub-scene to the target below.
-    const Matrix2F& mvp = Matrices->UserView * e.pPrimitive->GetFilterAreaMatrix().GetMatrix2D();
-    const Cxform&   cx  = e.pPrimitive->GetFilterAreaMatrix().GetCxform();
-    applyBlendMode(BlendModeStack.GetSize()>=1 ? BlendModeStack.Back() : Blend_Normal, true, true);
-    DrawFilter(mvp, cx, filter, temporaryTextures, shaders, pass, passes, MappedXY16iUVTexture[PrimitiveBatch::DP_Single], LEBlurState, true);
-    applyBlendMode(BlendModeStack.GetSize()>=1 ? BlendModeStack.Back() : Blend_Normal, false, (HALState&HS_InRenderTarget) != 0);
-
-    if ( HALState & HS_DrawingMask )
-        glColorMask(0,0,0,0);
-
-    // Cleanup.
-    for ( unsigned i = 0; i < MaxTemporaryTextures; ++i )
-    {
-        if (temporaryTextures[i])
-            temporaryTextures[i]->SetInUse(false);
-    }
-    AccumulatedStats.Filters += filters->GetFilterCount();
-
+    ShaderHAL<ShaderManager, ShaderInterface>::drawUncachedFilter(e);
 }
 
 void HAL::drawCachedFilter(FilterPrimitive* primitive)
 {
     FilterVertexBufferSet = 0;
-    BlurFilterState LEBlurState (8);
-
-    const unsigned MaxTemporaryTextures = 3;
-    switch(primitive->GetCacheState())
-    {
-        // We have one-step from final target. Render it to a final target now.
-        case FilterPrimitive::Cache_PreTarget:
-        {
-            const FilterSet* filters = primitive->GetFilters();
-            UPInt filterIndex = filters->GetFilterCount()-1;
-            const Filter* filter = filters->GetFilter(filterIndex);
-            unsigned shaders[ShaderManager::MaximumFilterPasses];
-
-            unsigned passes = SManager.SetupFilter(filter, FillFlags, shaders, LEBlurState);
-            
-            // Fill out the temporary textures from the cached results.
-            Ptr<RenderTarget> temporaryTextures[MaxTemporaryTextures];
-            memset(temporaryTextures, 0, sizeof temporaryTextures);
-            RenderTarget* results[2];
-            primitive->GetCacheResults(results, 2);
-            temporaryTextures[0] = results[0];
-            ImageSize size = temporaryTextures[0]->GetSize();
-            temporaryTextures[1] = *CreateTempRenderTarget(size, false);
-            temporaryTextures[2] = results[1];
-            PushRenderTarget(RectF((float)size.Width,(float)size.Height), temporaryTextures[1]);
-
-            // Render to the target.
-            Matrix2F mvp = Matrix2F::Scaling(2,2) * Matrix2F::Translation(-0.5f, -0.5f);
-            const Cxform & cx = primitive->GetFilterAreaMatrix().GetCxform();
-
-            applyBlendMode(BlendModeStack.GetSize()>=1 ? BlendModeStack.Back() : Blend_Normal, true, true);
-            DrawFilter(mvp, cx, filter, temporaryTextures, shaders, passes-1, passes, 
-                MappedXY16iAlphaTexture[PrimitiveBatch::DP_Single], LEBlurState, true);
-
-            PopRenderTarget();
-            
-            // Re-[en/dis]able masking from previous target, if available.
-            if ( MaskStackTop != 0 )
-                glEnable(GL_STENCIL_TEST);
-
-            // Re-[en/dis]able masking from previous target, if available.
-            if ( HALState & HS_DrawingMask )
-                glColorMask(0,0,0,0);
-
-            // Set this as the final cache result, and then render it.
-            RenderTarget* prt = temporaryTextures[1];
-            primitive->SetCacheResults(FilterPrimitive::Cache_Target, &prt, 1);
-            ((GL::RenderTargetData*)prt->GetRenderTargetData())->CacheID = reinterpret_cast<UPInt>(primitive);
-            drawCachedFilter(primitive);
-
-            // Cleanup.
-            for ( unsigned i = 0; i < MaxTemporaryTextures; ++i )
-            {
-                if (temporaryTextures[i])
-                    temporaryTextures[i]->SetInUse(false);
-            }
-            break;
-        }
-
-        // We have a final filtered texture. Just apply it to a screen quad.
-        case FilterPrimitive::Cache_Target:
-        {
-            unsigned fillFlags = (FillFlags & ~FF_Cxform);
-            const ShaderManager::Shader& pso = SManager.SetFill(PrimFill_Texture, fillFlags, PrimitiveBatch::DP_Single, 
-                MappedXY16iAlphaTexture[PrimitiveBatch::DP_Single], &ShaderData);
-
-            RenderTarget* results;
-            primitive->GetCacheResults(&results, 1);
-            Texture* ptexture = (GL::Texture*)results->GetTexture();
-            const Matrix2F& mvp = Matrices->UserView * primitive->GetFilterAreaMatrix().GetMatrix2D();
-            const Rect<int>& srect = results->GetRect();
-            Matrix2F texgen;
-            texgen.AppendTranslation((float)srect.x1, (float)srect.y1);
-            texgen.AppendScaling((float)srect.Width() / ptexture->GetSize().Width, (float)srect.Height() / ptexture->GetSize().Height);
-
-            ShaderData.SetUniform(pso, Uniform::SU_mvp, &mvp.M[0][0], 8 );
-            ShaderData.SetUniform(pso, Uniform::SU_texgen, &texgen.M[0][0], 8 );
-            ShaderData.SetTexture(pso, Uniform::SU_tex, ptexture, ImageFillMode(Wrap_Clamp, Sample_Linear));
-            ShaderData.Finish();
-
-            if (!FilterVertexBufferSet)
-            {
-                SetVertexArray(&VertexXY16iAlpha::Format, Cache.MaskEraseBatchVertexBuffer, 0);
-                FilterVertexBufferSet = 1;
-            }
-
-            applyBlendMode(BlendModeStack.GetSize()>=1 ? BlendModeStack.Back() : Blend_Normal, true, true);
-            drawPrimitive(6,1);
-            applyBlendMode(BlendModeStack.GetSize()>=1 ? BlendModeStack.Back() : Blend_Normal, false, (HALState&HS_InRenderTarget)!=0);
-
-            // Cleanup.
-            results->SetInUse(false);
-            if ( !Profiler.IsFilterCachingEnabled() )
-                primitive->SetCacheResults(FilterPrimitive::Cache_Uncached, 0, 0);
-            break;
-        }
-
-        // Should have been one of the other two caching types.
-        default: SF_ASSERT(0); break;
-    }
-}
-
-void HAL::DrawableCxform( Render::Texture** tex, const Matrix2F* texgen, const Cxform* cx)
-{
-    ScopedRenderEvent GPUEvent(GetEvent(Event_DICxform), __FUNCTION__);
-    SManager.SetDrawableCxform(tex, texgen, RenderTargetStack.Back().pRenderTarget->GetSize(), cx, 
-        MappedXY16iAlphaTexture[PrimitiveBatch::DP_Single], &ShaderData, ShaderManager::CPF_InvertedViewport );
-    drawScreenQuad();
-}
-
-void HAL::DrawableCompare( Render::Texture** tex, const Matrix2F* texgen )
-{
-    ScopedRenderEvent GPUEvent(GetEvent(Event_DICompare), __FUNCTION__);
-    SManager.SetDrawableCompare(tex, texgen, RenderTargetStack.Back().pRenderTarget->GetSize(), 
-        MappedXY16iAlphaTexture[PrimitiveBatch::DP_Single], &ShaderData, ShaderManager::CPF_InvertedViewport );
-    drawScreenQuad();
-}
-
-void HAL::DrawableCopyChannel( Render::Texture** tex, const Matrix2F* texgen, const Matrix4F* cxmul ) 
-{
-    ScopedRenderEvent GPUEvent(GetEvent(Event_DIMerge), __FUNCTION__);
-    SManager.SetDrawableMergeFill(tex, texgen, RenderTargetStack.Back().pRenderTarget->GetSize(), 
-        cxmul, MappedXY16iAlphaTexture[PrimitiveBatch::DP_Single], &ShaderData, ShaderManager::CPF_InvertedViewport);
-
-    drawScreenQuad();
-}
-
-void HAL::DrawableMerge( Render::Texture** tex, const Matrix2F* texgen, const Matrix4F* cxmul )
-{
-    ScopedRenderEvent GPUEvent(GetEvent(Event_DIMerge), __FUNCTION__);
-    SManager.SetDrawableMergeFill(tex, texgen, RenderTargetStack.Back().pRenderTarget->GetSize(), 
-        cxmul, MappedXY16iAlphaTexture[PrimitiveBatch::DP_Single], &ShaderData, ShaderManager::CPF_InvertedViewport );
-
-    drawScreenQuad();
-}
-
-void HAL::DrawableCopyPixels( Render::Texture** tex, const Matrix2F* texgen, const Matrix2F& mvp, bool mergeAlpha, bool destAlpha )
-{
-    ScopedRenderEvent GPUEvent(GetEvent(Event_DICopyPixels), __FUNCTION__);
-    SManager.SetDrawableCopyPixelsFill(tex, texgen, RenderTargetStack.Back().pRenderTarget->GetSize(), mvp,
-        mergeAlpha, destAlpha, MappedXY16iAlphaTexture[PrimitiveBatch::DP_Single], &ShaderData, ShaderManager::CPF_InvertedViewport );
-
-    drawScreenQuad();
-}
-
-void HAL::DrawablePaletteMap( Render::Texture** tex, const Matrix2F* texgen, const Matrix2F& mvp, unsigned channelMask, const UInt32* values)
-{
-    ScopedRenderEvent GPUEvent(GetEvent(Event_DIPaletteMap), __FUNCTION__);
-
-    // Create a temporary texture with the palette map. There may be a more efficient way to do this; however, using
-    // uniforms seems unworkable, due to shader constant slot constraints.
-    ImageData data;
-    Ptr<Render::Texture> ptex = *pTextureManager->CreateTexture(Image_B8G8R8A8, 1, ImageSize(256, 4), ImageUse_Map_Mask, 0);
-    if ( !ptex->Map(&data, 0, 1) )
-        return;
-    for ( int channel = 0; channel < 4; ++channel )
-    {
-        UInt32* dataPtr = (UInt32*)data.GetScanline(channel);
-        if ( channelMask & (1<<channel))
-        {
-            memcpy(dataPtr, values + channel*256, 256*sizeof(UInt32));
-        }
-        else
-        {
-            // Channel was not provided, just do a straight mapping.
-            for ( unsigned i = 0; i < 256; ++i )
-                *dataPtr++ = (i << (channel*8));
-        }
-    }
-    if (!ptex->Unmap())
-        return;
-
-    // First pass overwrites everything.
-    applyBlendMode(Blend_OverwriteAll, true, true);
-    SManager.SetDrawablePaletteMap(tex, texgen, RenderTargetStack.Back().pRenderTarget->GetSize(), mvp,
-        ptex, MappedXY16iAlphaTexture[PrimitiveBatch::DP_Single], &ShaderData, ShaderManager::CPF_InvertedViewport );
-
-    drawScreenQuad();
-}
-
-void HAL::DrawableThreshold(Render::Texture** tex, const Matrix2F* texgen, const Matrix2F& mvp, DrawableImage::OperationType op, 
-                            UInt32 threshold, UInt32 color, UInt32 mask, bool copySource)
-{
-    ScopedRenderEvent GPUEvent(GetEvent(Event_DIThreshold), __FUNCTION__);
-
-    SManager.SetDrawableThreshold(tex, texgen, RenderTargetStack.Back().pRenderTarget->GetSize(), mvp,
-        op, threshold, color, mask, copySource, MappedXY16iAlphaTexture[PrimitiveBatch::DP_Single], 
-        &ShaderData, ShaderManager::CPF_InvertedViewport );
-
-    drawScreenQuad();
-}
-
-void HAL::DrawableCopyback( Render::Texture* source, const Matrix2F& mvp, const Matrix2F& texgen )
-{
-    ScopedRenderEvent GPUEvent(GetEvent(Event_DICopyback), __FUNCTION__);
-
-    // Set shader constants.
-    unsigned fillFlags = 0;
-    const ShaderManager::Shader& pso = SManager.SetFill(PrimFill_Texture, fillFlags, PrimitiveBatch::DP_Single, 
-        MappedXY16iAlphaTexture[PrimitiveBatch::DP_Single], &ShaderData);    
-
-    ShaderData.SetMatrix(pso,  Uniform::SU_mvp,    mvp);
-    ShaderData.SetMatrix(pso,  Uniform::SU_texgen, texgen);
-    ShaderData.SetTexture(pso, Uniform::SU_tex,    source, ImageFillMode());
-    ShaderData.Finish(1);
-
-    drawScreenQuad();
+    ShaderHAL<ShaderManager, ShaderInterface>::drawCachedFilter(primitive);
 }
 
 //--------------------------------------------------------------------
@@ -1368,50 +1168,73 @@ RenderTargetData::~RenderTargetData()
 
         // If the texture manager isn't present, just try deleting it immediately.
         if (!pmgr)
-            glDeleteFramebuffersEXT(1, &FBOID);
+            glDeleteFramebuffers(1, &FBOID);
         else
             pmgr->DestroyFBO(FBOID);
     }
 
 }
 
-class VertexBuilder
+// Helper function to retrieve the vertex element type (VET) and normalization from a vertex attribute. Returns false if the attribute should be ignored.
+bool VertexBuilderVET(unsigned attr, GLenum&vet, bool& norm)
+{
+    switch (attr & VET_CompType_Mask)
+    {
+    case VET_U8:  vet = GL_UNSIGNED_BYTE; norm = false; break;
+    case VET_U8N: vet = GL_UNSIGNED_BYTE; norm = true; break;
+    case VET_U16: vet = GL_UNSIGNED_SHORT; norm = false; break;
+    case VET_S16: vet = GL_SHORT; norm = false; break;
+    case VET_U32: vet = GL_UNSIGNED_INT; norm = false; break;
+    case VET_F32: vet = GL_FLOAT; norm = false;  break;
+
+        // Instance indices are not used in the vertex arrays, so just ignore them.
+    case VET_I8:
+    case VET_I16:
+        return false;
+
+    default: SF_ASSERT(0); vet = GL_FLOAT; norm = false; return false;
+    }
+    return true;
+}
+
+// Uses functions within the GL 2.1- (or GLES 2.0) spec to define vertex attributes. This is not
+// compatible with GL 3.0+ (see VertexBuilder_Core30).
+class VertexBuilder_Legacy
 {
 public:
-    UByte*    vertexOffset;
-    unsigned  Size;
-    HAL*      pHal;
+    HAL*            pHal;
+    unsigned        Stride;
+    UByte*          VertexOffset;
 
-    VertexBuilder(HAL* phal, UByte* v, unsigned s) : vertexOffset(v), Size(s), pHal(phal) {}
+    VertexBuilder_Legacy(HAL* phal, unsigned stride, GLuint vbuffer, GLuint ibuffer, UByte* vertOffset) : 
+        pHal(phal), Stride(stride), VertexOffset(vertOffset)
+    {
+        // Bind the vertex buffer and the index buffer immediately.
+        glBindBuffer(GL_ARRAY_BUFFER, vbuffer);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibuffer);
+    }
+
     HAL* GetHAL() { return pHal; }
 
     void Add(int vi, int attr, int ac, int offset)
     {
         GLenum vet; bool norm;
-
-        switch (attr & VET_CompType_Mask)
-        {
-        case VET_U8:  vet = GL_UNSIGNED_BYTE; norm = false; break;
-        case VET_U8N: vet = GL_UNSIGNED_BYTE; norm = true; break;
-        case VET_U16: vet = GL_UNSIGNED_SHORT; norm = false; break;
-        case VET_S16: vet = GL_SHORT; norm = false; break;
-        case VET_U32: vet = GL_UNSIGNED_INT; norm = false; break;
-        case VET_F32: vet = GL_FLOAT; norm = false;  break;
-
-        // Instance indices are not used in the vertex arrays, so just ignore them.
-        case VET_I8:
-        case VET_I16:
+        if (!VertexBuilderVET(attr, vet, norm))
             return;
-
-        default: SF_ASSERT(0); vet = GL_FLOAT; norm = false; break;
-        }
 
         if ( pHal->EnabledVertexArrays < vi )
         {
             glEnableVertexAttribArray(vi);
             pHal->EnabledVertexArrays++;
         }
-        glVertexAttribPointer(vi, ac, vet, norm, Size, vertexOffset + offset);
+
+        // Note: Extend the size of UByte w/1 component to 4 components. On certain drivers, this
+        // appears to work incorrectly, but extending it to 4xUByte corrects the issue (even though
+        // 3 of the elements are unused).
+        if (vet == GL_UNSIGNED_BYTE && ac < 4)
+            ac = 4;
+
+        glVertexAttribPointer(vi, ac, vet, norm, Stride, VertexOffset + offset);
     }
 
     void Finish(int vi)
@@ -1425,163 +1248,141 @@ public:
     }
 };
 
-bool HAL::SetVertexArray(const VertexFormat* pFormat, GLuint buffer, UByte* vertexOffset)
+class VertexBuilder_Core30
 {
-    glBindBuffer(GL_ARRAY_BUFFER, buffer);
+public:
+    HAL*            pHal;
+    unsigned        Stride;
+    MeshCacheItem*  pMesh;
+    bool            NeedsGeneration;    // Set to true if the VAO has not been initialized yet (and should be done by this class).
+    UByte*          VertexOffset;
 
-    VertexBuilder vb (this, vertexOffset, pFormat->Size);
-    BuildVertexArray(pFormat, vb);
+    VertexBuilder_Core30(HAL* phal, const VertexFormat* pformat, MeshCacheItem* pmesh, UPInt vbOffset) : 
+        pHal(phal), Stride(pformat->Size), pMesh(pmesh), NeedsGeneration(false), VertexOffset(0)
+    {
+        // Allocate VAO for this mesh now.
+        VertexOffset = pmesh->pVertexBuffer->GetBufferBase() + pmesh->VBAllocOffset + vbOffset;
+        if (pMesh->VAOFormat != pformat || pMesh->VAOOffset != VertexOffset || pMesh->VAO == 0)
+        {
+            if (pMesh->VAO)
+                glDeleteVertexArrays(1, &pMesh->VAO);
+            glGenVertexArrays(1, &pMesh->VAO);
 
-    return true;
+            // Store the vertex offset, and indicate that we need to generate the contents of the VAO.
+            pMesh->VAOOffset = VertexOffset;
+            pMesh->VAOFormat = pformat;
+            NeedsGeneration = true;
+        }
+
+        // Bind the VAO.
+        glBindVertexArray(pMesh->VAO);        
+
+        // If need to generate the VAO, bind the VB/IB now
+        if (NeedsGeneration)
+        {
+            GLuint vbuffer = pmesh->pVertexBuffer->GetBuffer();
+            GLuint ibuffer = pmesh->pIndexBuffer->GetBuffer();
+            glBindBuffer(GL_ARRAY_BUFFER, vbuffer);
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibuffer);
+        }
+    }
+
+    HAL* GetHAL() { return pHal; }
+
+    void Add(int vi, int attr, int ac, int offset)
+    {
+        // If we have already generated the VAO, just skip everything.
+        if (!NeedsGeneration)
+            return;
+
+        GLenum vet; bool norm;
+        if (!VertexBuilderVET(attr, vet, norm))
+            return;
+
+        // Note: Extend the size of UByte w/1 component to 4 components. On certain drivers, this
+        // appears to work incorrectly, but extending it to 4xUByte corrects the issue (even though
+        // 3 of the elements are unused).
+        if (vet == GL_UNSIGNED_BYTE && ac < 4)
+            ac = 4;
+
+        glEnableVertexAttribArray(vi);
+        glVertexAttribPointer(vi, ac, vet, norm, Stride, VertexOffset + offset);
+    }
+
+    void Finish(int)
+    {
+    }
+};
+
+UPInt HAL::setVertexArray(PrimitiveBatch* pbatch, Render::MeshCacheItem* pmesh)
+{
+    return setVertexArray(pbatch->pFormat, pmesh, 0);
 }
 
-const ShaderObject* HAL::GetStaticShader( FragShaderDesc::ShaderType shaderType )
+UPInt HAL::setVertexArray(const ComplexMesh::FillRecord& fr, unsigned formatIndex, Render::MeshCacheItem* pmesh)
 {
-    unsigned comboIndex = FragShaderDesc::GetShaderComboIndex(shaderType);
-    SF_DEBUG_ASSERT(VertexShaderDesc::GetShaderComboIndex((VertexShaderDesc::ShaderType)shaderType) == comboIndex,
+    return setVertexArray(fr.pFormats[formatIndex], pmesh, fr.VertexByteOffset);
+}
+
+UPInt HAL::setVertexArray(const VertexFormat* pformat, Render::MeshCacheItem* pmeshBase, UPInt vboffset)
+{
+    GL::MeshCacheItem* pmesh = reinterpret_cast<GL::MeshCacheItem*>(pmeshBase);
+    if (ShouldUseVAOs())
+    {
+        VertexBuilder_Core30 vb (this, pformat, pmesh, vboffset);
+        BuildVertexArray(pformat, vb);
+    }
+    else
+    {
+        // Legacy and/or GLES path.
+        VertexBuilder_Legacy vb (this, pformat->Size, pmesh->pVertexBuffer->GetBuffer(),
+            pmesh->pIndexBuffer->GetBuffer(), pmesh->pVertexBuffer->GetBufferBase() + pmesh->VBAllocOffset + vboffset);
+        BuildVertexArray(pformat, vb);
+    }
+    return reinterpret_cast<UPInt>((pmesh->pIndexBuffer->GetBufferBase() + pmesh->IBAllocOffset)) / sizeof(IndexType); 
+}
+
+void HAL::setVertexArray(const VertexFormat* pFormat, GLuint buffer, GLuint vao)
+{
+	SF_UNUSED(pFormat);
+    SF_UNUSED(buffer);
+    if (ShouldUseVAOs())
+    {
+        // Immediately bind the VAO, it must be constructed already.
+        glBindVertexArray(vao);
+        return;
+    }
+
+    // Legacy and/or GLES path. Assume no buffer offsets.
+    VertexBuilder_Legacy vb (this, pFormat->Size, buffer, 0, 0);
+    BuildVertexArray(pFormat, vb);
+}
+
+const ShaderObject* HAL::GetStaticShader( ShaderDesc::ShaderType shaderType )
+{
+    unsigned comboIndex = FragShaderDesc::GetShaderComboIndex(shaderType, SManager.GLSLVersion);
+    SF_DEBUG_ASSERT(VertexShaderDesc::GetShaderComboIndex(shaderType, SManager.GLSLVersion) == comboIndex,
         "Expected ComboIndex for both vertex and fragment shaders to be equivalent.");
     if ( comboIndex >= UniqueShaderCombinations )
         return 0;
 
-    ShaderObject* shader = &StaticShaders[comboIndex];
+    ShaderObject* shader = &SManager.StaticShaders[comboIndex];
 
     // Initialize the shader if it hasn't already been initialized.
-    if ( (VMCFlags & HALConfig_DynamicShaderCompile) && shader->Prog == 0 )
+    if ( (VMCFlags & HALConfig_DynamicShaderCompile) && !shader->IsInitialized() )
     {
-        if ( !shader->Init(this, (VertexShaderType)shaderType, shaderType))
+        if ( !shader->Init(this, SManager.GLSLVersion, comboIndex, 
+            SManager.UsingSeparateShaderObject(), SManager.CompiledShaderHash ))
+        {
             return 0;
+        }
+        else if (VMCFlags & HALConfig_MultipleShaderCacheFiles)
+        {
+            // If we have a file-per-shader, save shaders after every dynamic initialization.
+            SManager.saveBinaryShaders();
+        }
     }
     return shader;
-}
-
-bool HAL::initializeShaders(bool force)
-{
-#ifdef SF_GL_BINARY_SHADERS
-    if ((Caps & Cap_BinaryShaders) && BinaryShaderPath.GetLength())
-    {
-        String shpath = BinaryShaderPath + "GFxShaders.cache";
-        Ptr<File>  pfile = *SF_NEW SysFile(shpath);
-
-        //SF_DEBUG_MESSAGE1(1, "Shader binary file is %d bytes", pfile->GetLength());
-        if (pfile)
-        {
-            char header[10];
-            if (pfile->Read((UByte*)header, 10) < 10 || strncmp(header, "GFxShaders", 10))
-                goto noBinary;
-
-            SInt64 version = pfile->ReadSInt64();
-            SF_DEBUG_WARNING2(version != SF_GFXSHADERMAKER_TIMESTAMP, "Binary shaders timestamps do not match executable. "
-                "Using source shaders (bin=%lld, exe=%lld)", version, SF_GFXSHADERMAKER_TIMESTAMP);
-            if ( version != SF_GFXSHADERMAKER_TIMESTAMP )
-                goto noBinary;
-
-            GLsizei bufferSize = 0;
-            void* buffer = 0;
-
-            SInt32 count = pfile->ReadSInt32();
-            for (int i = 0; i < count; i++)
-            {
-                SInt32 comboIndex = pfile->ReadSInt32();
-                //SF_DEBUG_MESSAGE1(1, "Loading binary shader (comboIndex=%d)", comboIndex);
-
-                // Find the shader type that goes with this combination.
-                if (!StaticShaders[comboIndex].InitBinary(comboIndex, pfile, buffer, bufferSize))
-                {
-                    SF_FREE(buffer);
-                    SF_DEBUG_WARNING(1, "Error loading some binary shaders. Using source.");
-
-                    // Kill all previously loaded binary shaders, they are likely bogus.
-                    for ( unsigned ci = 0; ci < UniqueShaderCombinations; ++ci)
-                        StaticShaders[ci].Shutdown();
-
-                    goto noBinary;
-                }                    
-            }
-            SF_FREE(buffer);
-            return true;
-        }
-    }
-    noBinary:
-#endif
-
-
-    if ( (VMCFlags & HALConfig_DynamicShaderCompile) == 0 || force)
-    {
-        for (unsigned i = 0; i < UniqueShaderCombinations; i++)
-        {
-            if ( StaticShaders[i].Prog )
-                continue;
-
-            // Find the shader type that goes with this combination.
-            FragShaderDesc::ShaderIndex fsIndex = FragShaderDesc::GetShaderIndexForComboIndex(i);
-            VertexShaderDesc::ShaderIndex vsIndex = VertexShaderDesc::GetShaderIndexForComboIndex(i);
-
-            if (!FragShaderDesc::Descs[fsIndex] || !VertexShaderDesc::Descs[vsIndex] )
-                continue;
-
-            // If the platform does not support dynamic loops, do not initialize shaders that use them.
-            if ((FragShaderDesc::Descs[fsIndex]->Flags & Shader_DynamicLoop) && (Caps & Cap_NoDynamicLoops))
-                continue;
-
-            // If the platform doesn't support instancing, do not initialize shaders that use it.
-            if ( (FragShaderDesc::Descs[fsIndex]->Flags & Shader_Instanced) && !SManager.HasInstancingSupport() )
-                continue;
-
-            if ( !StaticShaders[i].Init(this, VertexShaderDesc::Descs[vsIndex]->Type, FragShaderDesc::Descs[fsIndex]->Type))
-                return false;
-        }
-    }
-
-#ifdef SF_GL_BINARY_SHADERS
-    if ((Caps & Cap_BinaryShaders) && BinaryShaderPath.GetLength())
-    {
-        String shpath = BinaryShaderPath + "GFxShaders.cache";
-        Ptr<File>  pfile = *SF_NEW SysFile(shpath, File::Open_Write|File::Open_Create|File::Open_Truncate);
-
-        if (pfile->IsValid())
-        {
-            GLsizei totalSize = 0;
-            GLsizei bufferSize = 0;
-            void* buffer = 0;
-
-            pfile->Write((const UByte*) "GFxShaders", 10);
-            pfile->WriteSInt64(SF_GFXSHADERMAKER_TIMESTAMP);
-            totalSize += 10 + 8;
-
-            SInt32 count = 0;
-            for (unsigned i = 0; i < UniqueShaderCombinations; i++)
-                if (StaticShaders[i].Prog)
-                    count++;
-
-            pfile->WriteSInt32(count);
-            totalSize += 4;
-
-            for (unsigned i = 0; i < UniqueShaderCombinations; i++)
-            {
-                if (StaticShaders[i].Prog)
-                {
-                    pfile->WriteSInt32(i);
-                    totalSize += 4;
-                    //SF_DEBUG_MESSAGE1(1, "Saving binary shader (comboIndex=%d)", i);
-                    if (!StaticShaders[i].SaveBinary(pfile, buffer, bufferSize, totalSize))
-                    {
-                        SF_DEBUG_WARNING1(1, "Error saving shader (comboIndex=%d)", i);
-                        pfile->Close();
-                        unlink(shpath.ToCStr());
-                        break;
-                    }
-                }
-            }
-
-            //SF_DEBUG_MESSAGE1(1, "Total bytes written to shader cache file: %d", totalSize);
-            pfile->Close();
-        }
-        else
-            SF_DEBUG_WARNING2(1, "Error creating binary shader cache %s: %d", shpath.ToCStr(), pfile->GetErrorCode());
-    }
-#endif
-
-    return true;
 }
 
 bool HAL::shouldRenderFilters(const FilterPrimitive*) const
@@ -1593,13 +1394,13 @@ bool HAL::shouldRenderFilters(const FilterPrimitive*) const
 void HAL::drawScreenQuad()
 {
     // Set the vertices, and Draw
-    SetVertexArray(&VertexXY16iInstance::Format, Cache.MaskEraseBatchVertexBuffer, 0);
+    setBatchUnitSquareVertexStream();
     drawPrimitive(6,1);
 }
 
-void    HAL::DrawFilter(const Matrix2F& mvp, const Cxform & cx, const Filter* filter, Ptr<RenderTarget> * targets, 
+void    HAL::drawFilter(const Matrix2F& mvp, const Cxform & cx, const Filter* filter, Ptr<RenderTarget> * targets, 
                         unsigned* shaders, unsigned pass, unsigned passCount, const VertexFormat* pvf, 
-                        BlurFilterState& leBlur, bool isLastPass)
+                        BlurFilterState& leBlur)
 {
     if (leBlur.Passes > 0)
     {
@@ -1614,14 +1415,14 @@ void    HAL::DrawFilter(const Matrix2F& mvp, const Cxform & cx, const Filter* fi
 
         glUseProgram(pShader->Shader);
 
-        if (!isLastPass)
+        if (pass != passCount-1)
         {
             BlendEnable = 1;
             glEnable(GL_BLEND);
             glBlendFunc(GL_ONE, GL_ONE);
             glBlendEquation(GL_FUNC_ADD);
         }
-        // else do nothing, dest blend mode was set before calling DrawFilter
+        // else do nothing, dest blend mode was set before calling drawFilter
 
         glUniform4fv(pShader->mvp, 2, &mvp.M[0][0]);
 
@@ -1689,13 +1490,18 @@ void    HAL::DrawFilter(const Matrix2F& mvp, const Cxform & cx, const Filter* fi
     {
         if (!FilterVertexBufferSet)
         {
-            SetVertexArray(&VertexXY16iAlpha::Format, Cache.MaskEraseBatchVertexBuffer, 0);
+            setBatchUnitSquareVertexStream();
             FilterVertexBufferSet = 1;
         }
 
         SManager.SetFilterFill(mvp, cx, filter, targets, shaders, pass, passCount, pvf, &ShaderData);
         drawPrimitive(6,1);
     }
+}
+
+void HAL::setBatchUnitSquareVertexStream()
+{
+    setVertexArray(&VertexXY16iInstance::Format, Cache.MaskEraseBatchVertexBuffer, Cache.MaskEraseBatchVAO);
 }
 
 void HAL::drawPrimitive(unsigned indexCount, unsigned meshCount)
@@ -1710,11 +1516,11 @@ void HAL::drawPrimitive(unsigned indexCount, unsigned meshCount)
 #endif
 }
 
-void HAL::drawIndexedPrimitive( unsigned indexCount, unsigned meshCount, UByte* indexPtr)
+void HAL::drawIndexedPrimitive(unsigned indexCount, unsigned vertexCount, unsigned meshCount, UPInt indexPtr, UPInt vertexOffset )
 {
-    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, indexPtr);
+    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, reinterpret_cast<const GLvoid*>(indexPtr*sizeof(IndexType)));
 
-    SF_UNUSED(meshCount);
+    SF_UNUSED3(meshCount, vertexCount, vertexOffset);
 #if !defined(SF_BUILD_SHIPPING)
     AccumulatedStats.Meshes += meshCount;
     AccumulatedStats.Triangles += indexCount / 3;
@@ -1722,17 +1528,18 @@ void HAL::drawIndexedPrimitive( unsigned indexCount, unsigned meshCount, UByte* 
 #endif
 }
 
-void HAL::drawIndexedInstanced( unsigned indexCount, unsigned meshCount, UByte* indexPtr)
+void HAL::drawIndexedInstanced(unsigned indexCount, unsigned vertexCount, unsigned meshCount, UPInt indexPtr, UPInt vertexOffset )
 {
-#if !defined (SF_USE_GLES_ANY) && !defined(SF_OS_MAC)
-    glDrawElementsInstanced(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, indexPtr, meshCount);
+    SF_UNUSED2(vertexCount, vertexOffset);
+#if !defined (SF_USE_GLES_ANY)
+    glDrawElementsInstanced(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, reinterpret_cast<const GLvoid*>(indexPtr*sizeof(IndexType)), meshCount);
 #else
     SF_DEBUG_ASSERT(0, "Instancing not supported on GLES platforms.");
 #endif
 
 #if !defined(SF_BUILD_SHIPPING)
     AccumulatedStats.Meshes += meshCount;
-    AccumulatedStats.Triangles += indexCount / 3;
+    AccumulatedStats.Triangles += (indexCount / 3) * meshCount;
     AccumulatedStats.Primitives++;
 #endif
 }
@@ -1777,7 +1584,7 @@ void MatrixState::recalculateUVPOC() const
 
         Matrix4F flipmat;
         flipmat.SetIdentity();
-        if(pHAL && pHAL->RenderTargetStack.GetSize() > 1)
+        if(pHAL && (pHAL->VP.Flags & Viewport::View_IsRenderTexture))
         {
             flipmat.Append(Matrix4F::Scaling(1.0f, -1.0f, 1.0f));
         }
@@ -1788,6 +1595,86 @@ void MatrixState::recalculateUVPOC() const
         UVPO = Matrix4F(Matrix4F(UO, VRP), View3D);
         UVPOChanged = 0;
     }
+}
+
+// Simple linear searching. This is only for debugging purposes, so performance is not an issue, and creating a hash seems like overkill.
+struct GLEnumString
+{
+    GLenum      key;
+    const char* str;
+};
+
+// Returns the string associated with the key, in the given list (list must terminate with key == 0).
+const char* findEntry(GLenum key, GLEnumString* list)
+{
+    while (list && list->key)
+    {
+        if (list->key == key)
+            return list->str;
+        list++;
+    }
+    return "Unknown GLenum";
+}
+
+#if defined(SF_CC_GNU)
+void GL_APIENTRY DebugMessageCallback(  unsigned source,
+                                        unsigned type,
+                                        unsigned id,
+                                        unsigned severity,
+                                        int,
+                                        const char* message,
+                                        const void*)
+#else
+void GL_APIENTRY DebugMessageCallback(  GLenum source,
+                                      GLenum type,
+                                      GLuint id,
+                                      GLenum severity,
+                                      GLsizei,
+                                      const char* message,
+                                      void*)
+#endif
+{
+    static GLEnumString sourceList[] = 
+    {
+        {GL_DEBUG_SOURCE_API,               "GL_DEBUG_SOURCE_API"},            
+        {GL_DEBUG_SOURCE_WINDOW_SYSTEM,     "GL_DEBUG_SOURCE_WINDOW_SYSTEM"},  
+        {GL_DEBUG_SOURCE_SHADER_COMPILER,   "GL_DEBUG_SOURCE_SHADER_COMPILER"},
+        {GL_DEBUG_SOURCE_THIRD_PARTY,       "GL_DEBUG_SOURCE_THIRD_PARTY"},    
+        {GL_DEBUG_SOURCE_APPLICATION,       "GL_DEBUG_SOURCE_APPLICATION"},    
+        {GL_DEBUG_SOURCE_OTHER,             "GL_DEBUG_SOURCE_OTHER"},          
+        {0,                                 ""}
+    };
+
+    static GLEnumString typeList[] =
+    {
+        {GL_DEBUG_TYPE_ERROR,               "GL_DEBUG_TYPE_ERROR"},               
+        {GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR, "GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR"}, 
+        {GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR,  "GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR"},  
+        {GL_DEBUG_TYPE_PORTABILITY,         "GL_DEBUG_TYPE_PORTABILITY"},         
+        {GL_DEBUG_TYPE_PERFORMANCE,         "GL_DEBUG_TYPE_PERFORMANCE"},         
+        {GL_DEBUG_TYPE_OTHER,               "GL_DEBUG_TYPE_OTHER"},               
+        {0,                                 ""}
+    };
+
+    static GLEnumString severityList[] =
+    {
+        {GL_DEBUG_SEVERITY_HIGH,    "GL_DEBUG_SEVERITY_HIGH"},  
+        {GL_DEBUG_SEVERITY_MEDIUM,  "GL_DEBUG_SEVERITY_MEDIUM"},
+        {GL_DEBUG_SEVERITY_LOW,     "GL_DEBUG_SEVERITY_LOW"},   
+        {0,                         ""}
+    };
+
+    const char* sourceText   = findEntry(source, sourceList);
+    const char* typeText     = findEntry(type, typeList);
+    const char* severityText = findEntry(severity, severityList);
+
+    LogDebugMessage(Log_Warning,
+                    "GL Debug Message: %s\n"
+                    "Source          : %s\n"
+                    "Type            : %s\n"
+                    "Severity        : %s\n"
+                    "Id              : %d\n", 
+                    message, sourceText, typeText, severityText, id);
 }
 
 }}} // Scaleform::Render::GL

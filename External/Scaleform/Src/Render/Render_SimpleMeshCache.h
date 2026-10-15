@@ -174,7 +174,6 @@ public:
     ~SimpleMeshCache();
 
     virtual void    ClearCache();
-    virtual void    BeginFrame();
     virtual void    EndFrame();
 
     virtual UPInt   Evict(Render::MeshCacheItem* p, AllocAddr* pallocator = 0, MeshBase* pmesh = 0);
@@ -187,6 +186,8 @@ public:
         unsigned vertexCount, unsigned indexCount,
         bool waitForCache,
         const VertexFormat* pDestFormat);
+
+    virtual bool    PreparePrimitive(PrimitiveBatch* pbatch, MeshCacheItem::MeshContent &mc, bool waitForCache);
 
     RenderSync*     GetRenderSync() const { return pRenderSync; }
 
