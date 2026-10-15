@@ -41,7 +41,7 @@ struct InstancingMeshVBCache
 		vbData->Next = Top;
 		Top = vbData;
 		vbData->InstancesVB = gfx_new r3dVertexBuffer( MaxInstancesToDraw, sizeof ( InstancedData ), 0, true );
-		vbData->ranges.push_back(std::make_pair<int, int>(0, MaxInstancesToDraw));
+		vbData->ranges.push_back(std::make_pair(0, MaxInstancesToDraw));
 	}
 
 	VBCacheInfo* GetVBRange(int count)

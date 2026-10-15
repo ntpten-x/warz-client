@@ -10,6 +10,7 @@
 #include "GFx_Kernel.h"
 #include "GFx_Renderer_D3D9.h"
 #include "GFx_FontProvider_Win32.h"
+using Scaleform::UPInt;
 #include "GFX/AS3/AS3_Global.h"
 
 // See r3dRender.h
@@ -39,6 +40,7 @@
 #elif defined(FINAL_BUILD)
 #pragma comment(lib, "libgfx_Release.lib")
 #pragma comment(lib, "libgfx_as3_Release.lib")
+#pragma comment(lib, "libgfx_air_Release.lib")
 #pragma comment(lib, "libgfxexpat_Release.lib")
 //#pragma comment(lib, "libgfx_Shipping.lib")
 //#pragma comment(lib, "libgfx_as3_Shipping.lib")
@@ -46,6 +48,7 @@
 #else // RELEASE
 #pragma comment(lib, "libgfx_Release.lib")
 #pragma comment(lib, "libgfx_as3_Release.lib")
+#pragma comment(lib, "libgfx_air_Release.lib")
 #pragma comment(lib, "libgfxexpat_Release.lib")
 #endif
 
@@ -275,10 +278,10 @@ class TranslatorImpl : public Scaleform::GFx::Translator
 	}
 };
 
-class r3dGFxTextClipboard : public Scaleform::GFx::TextClipboard
+class r3dGFxTextClipboard : public Scaleform::GFx::Clipboard
 { 
 public: 
-	void OnTextStore(const wchar_t* ptext, size_t len) 
+	virtual void OnTextStore(const wchar_t* ptext, UPInt len) 
 	{ 
 		// store the text in a system clipboard. 
 		if (OpenClipboard(NULL)) 
@@ -589,7 +592,7 @@ void r3dGfxOnDrawClipboardCallback(WPARAM wParam, LPARAM lParam)
 		const wchar_t* wstr = (const wchar_t*)GlobalLock(hglb); 
 		if (wstr != NULL) 
 		{
-			Scaleform::Ptr<Scaleform::GFx::TextClipboard> pclipBoard = gAPIScaleformGfx->loader.GetTextClipboard();
+			Scaleform::Ptr<Scaleform::GFx::Clipboard> pclipBoard = gAPIScaleformGfx->loader.GetClipboard();
 			if (pclipBoard)
 				pclipBoard->SetText(wstr);
 			GlobalUnlock(hglb); 
@@ -660,7 +663,7 @@ bool APIScaleformGfx::Create()
 	loader.SetUserEventHandler(fxEventHandler);
 	//loader.SetImageCreator(fxImageCreator);
 	loader.SetLog(fxLog);
-	loader.SetTextClipboard(fxClipboard); 
+	loader.SetClipboard(fxClipboard); 
 
 	Scaleform::Ptr<TranslatorImpl> ptranslator = *new  TranslatorImpl();
 	loader.SetTranslator(ptranslator);
@@ -685,7 +688,7 @@ bool APIScaleformGfx::Create()
 	loader.SetImageCreator(fxImageCreator);
 
 	// Create renderer.
-	RendererHAL = new Scaleform::Render::D3D9::HAL();
+	RendererHAL = new Scaleform::Render::D3D9::HAL(0);
 	if(!(Renderer = new Scaleform::Render::Renderer2D(RendererHAL.GetPtr())))
 	{
 		r3dError("GFx: Failed to create Renderer2D\n");

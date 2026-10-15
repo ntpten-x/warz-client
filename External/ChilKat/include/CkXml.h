@@ -2,339 +2,1982 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#ifndef _CKXML_H
-#define _CKXML_H
+// This header is generated for Chilkat 11.6.0
 
+#define _CkVersion 11.6.0
 
-
-class CkByteData;
+#ifndef _CkXml_H
+#define _CkXml_H
+	
+#include "chilkatDefs.h"
 #include "CkString.h"
-
 #include "CkMultiByteBase.h"
 
-/*
-    IMPORTANT: Objects returned by methods as non-const pointers must be deleted
-    by the calling application. 
+class CkByteData;
+class CkStringBuilder;
+class CkBinData;
 
-  */
 
-#ifndef __sun__
+
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (push, 8)
 #endif
- 
+
+
+#undef Copy
 
 // CLASS: CkXml
-class CkXml : public CkMultiByteBase
+class CK_VISIBLE_PUBLIC CkXml  : public CkMultiByteBase
 {
     private:
+
 	// Don't allow assignment or copying these objects.
-	CkXml(const CkXml &) { } 
-	CkXml &operator=(const CkXml &) { return *this; }
-	CkXml(void *impl);
+	CkXml(const CkXml &);
+	CkXml &operator=(const CkXml &);
 
     public:
-	CkXml();
-	virtual ~CkXml();
+	CkXml(void);
+	virtual ~CkXml(void);
 
 	static CkXml *createNew(void);
-
-	void inject(void *impl);
+	static CkXml *createNew2(int progLang);
+	void CK_VISIBLE_PRIVATE inject(void *impl);
 
 	// May be called when finished with the object to free/dispose of any
 	// internal resources held by the object. 
 	void dispose(void);
 
-	bool SetBinaryContent(const char *pByteData, unsigned long szByteData, bool zipFlag, bool encryptFlag, const char *password);
-
-	bool AddChildTree(const CkXml *tree);
-	bool SwapTree(const CkXml *tree);
-	bool SwapNode(const CkXml *node);
-	void CopyRef(CkXml *node);
-
-
-	bool GetChildIntValue(const char *tag, int &value);
-
+	
+		
+	
 
 	// BEGIN PUBLIC INTERFACE
 
-#if !defined(CHILKAT_MONO)
-	bool SetBinaryContent2(const unsigned char *pByteData, unsigned long szByteData,bool zipFlag, bool encryptFlag, const char *password);
-#endif
-	bool SetBinaryContent(const CkByteData &data, bool zipFlag, bool encryptFlag, const char *password);
+	// ----------------------
+	// Properties
+	// ----------------------
+	// Controls how this element's text content is emitted. When set to true, the
+	// element content is written inside a CDATA section instead of being emitted as
+	// ordinary character data with XML escaping.
+	// CDATA and escaping: CDATA is useful when text contains many characters such as <
+	// or &. It does not change the logical text value of the element; it only changes
+	// how that text is represented in the serialized XML.
+	bool get_Cdata(void);
+	// Controls how this element's text content is emitted. When set to true, the
+	// element content is written inside a CDATA section instead of being emitted as
+	// ordinary character data with XML escaping.
+	// CDATA and escaping: CDATA is useful when text contains many characters such as <
+	// or &. It does not change the logical text value of the element; it only changes
+	// how that text is represented in the serialized XML.
+	void put_Cdata(bool newVal);
 
-	bool GetBinaryContent(bool unzipFlag, bool decryptFlag, const char *password, CkByteData &outData);
-
-	bool ZipTree();
-	bool ZipContent();
-	bool UnzipTree();
-	bool UnzipContent();
-
-	bool EncryptContent(const char *password);
-	bool DecryptContent(const char *password);
-
-	void GetRoot2(void);
-
-	CkXml *GetRoot(void);
-	CkXml *GetChildWithTag(const char *tag);
-	CkXml *GetChildWithContent(const char *content);
-	CkXml *GetChildExact(const char *tag, const char *content);
-
-	long get_TreeId(void);
-	CkXml *PreviousSibling(void);
-	CkXml *NextSibling(void);
-	bool PreviousSibling2(void);
-	bool NextSibling2(void);
-	CkXml *LastChild(void);
-	CkXml *FirstChild(void);
-	bool Clear();
-	void Copy(const CkXml &node);
-	CkXml *GetParent(void);
-	bool GetParent2(void);
-	bool FirstChild2(void);
-	bool LastChild2(void);
-
-	CkXml *SearchForAttribute(const CkXml *after, const char *tag, const char *attr, const char *valuePattern);
-	CkXml *SearchAllForContent(const CkXml *after, const char *contentPattern);
-	CkXml *SearchForContent(const CkXml *after, const char *tag, const char *contentPattern);
-	CkXml *SearchForTag(const CkXml *after, const char *tag);
-
-	bool SearchForAttribute2(const CkXml *after, const char *tag, const char *attr, const char *valuePattern);
-	bool SearchAllForContent2(const CkXml *after, const char *contentPattern);
-	bool SearchForContent2(const CkXml *after, const char *tag, const char *contentPattern);
-	bool SearchForTag2(const CkXml *after, const char *tag);
-	bool GetNthChildWithTag2(const char *tag, long n);
-
-
-
-
-	CkXml *FindChild(const char *tag);
-	CkXml *FindOrAddNewChild(const char *tag);
-	CkXml *NewChildBefore(int index, const char *tag, const char *content);
-	CkXml *NewChildAfter(int index, const char *tag, const char *content);
-	CkXml *NewChild(const char *tag, const char *content);
-	void NewChild2(const char *tag, const char *content);
-	void NewChildInt2(const char *tag, int value);
-	CkXml *GetNthChildWithTag(const char *tag, long n);
-	long NumChildrenHavingTag(const char *tag);
-	CkXml *ExtractChildByName(const char *tag, const char *attrName, const char *attrValue);
-
-	CkXml *ExtractChildByIndex(long index);
-	void RemoveFromTree(void);
-	CkXml *GetChild(long index);
-	bool GetChild2(long index);
-
-	bool AddChildTree(const CkXml &tree) { return AddChildTree(&tree); }
-
-	bool InsertChildTreeAfter(int index, const CkXml &tree);
-	bool InsertChildTreeBefore(int index, const CkXml &tree);
-
-	bool SwapTree(const CkXml &tree) { return SwapTree(&tree); }
-	bool SwapNode(const CkXml &node) { return SwapNode(&node); }
-
-	bool HasAttrWithValue(const char *name, const char *value);
-
-	bool GetAttrValue(const char *name, CkString &outStr);
-	bool GetAttributeValue(long index, CkString &outStr);
-	bool GetAttributeName(long index, CkString &outStr);
-
-	bool RemoveAllAttributes();
-
-	void RemoveChild(const char *tag);
-
-	bool RemoveAttribute(const char *name);
-	bool AddAttribute(const char *name, const char *value);
-	bool AppendToContent(const char *str);
-
-	bool GetXml(CkString &outStr);
-
-	bool SaveXml(const char *path);
-	bool LoadXmlFile(const char *path);
-	bool LoadXml(const char *xmlData);
-	bool LoadXmlFile2(const char *path, bool autoTrim);
-	bool LoadXml2(const char *xmlData, bool autoTrim);
-
-	bool get_Cdata();
-	bool put_Cdata(bool newVal);
-
-	bool get_SortCaseInsensitive();
-	void put_SortCaseInsensitive(bool newVal);
-
-	long get_NumChildren();
-
+	// Gets or sets the text content stored directly on this XML element. Child
+	// elements are not included in this value.
+	// 
+	// For example, both of the following elements have This is the content as their
+	// Content:
+	// 
+	// _LT_tag1_GT_This is the content_LT_/tag1_GT_
+	// 
+	// _LT_tag2_GT__LT_child1_GT_abc_LT_/child1_GT__LT_child2_GT_abc_LT_/child2_GT_This
+	// is the content_LT_/tag2_GT_
+	// Content vs. children: Chilkat stores an element's direct text content separately
+	// from its child elements. Use the child-navigation methods when you need the
+	// nested elements themselves.
 	void get_Content(CkString &str);
+	// Gets or sets the text content stored directly on this XML element. Child
+	// elements are not included in this value.
+	// 
+	// For example, both of the following elements have This is the content as their
+	// Content:
+	// 
+	// _LT_tag1_GT_This is the content_LT_/tag1_GT_
+	// 
+	// _LT_tag2_GT__LT_child1_GT_abc_LT_/child1_GT__LT_child2_GT_abc_LT_/child2_GT_This
+	// is the content_LT_/tag2_GT_
+	// Content vs. children: Chilkat stores an element's direct text content separately
+	// from its child elements. Use the child-navigation methods when you need the
+	// nested elements themselves.
+	const char *content(void);
+	// Gets or sets the text content stored directly on this XML element. Child
+	// elements are not included in this value.
+	// 
+	// For example, both of the following elements have This is the content as their
+	// Content:
+	// 
+	// _LT_tag1_GT_This is the content_LT_/tag1_GT_
+	// 
+	// _LT_tag2_GT__LT_child1_GT_abc_LT_/child1_GT__LT_child2_GT_abc_LT_/child2_GT_This
+	// is the content_LT_/tag2_GT_
+	// Content vs. children: Chilkat stores an element's direct text content separately
+	// from its child elements. Use the child-navigation methods when you need the
+	// nested elements themselves.
 	void put_Content(const char *newVal);
 
-	bool GetChildContent(const char *tag, CkString &outStr);
+	// Gets or sets this element's content as a 32-bit integer. Setting the property
+	// converts the integer to its decimal text representation; getting the property
+	// interprets the element's text content as an integer.
+	// Numeric content: Use Content when the value may exceed the range of a 32-bit
+	// integer or when the exact lexical representation must be preserved.
+	int get_ContentInt(void);
+	// Gets or sets this element's content as a 32-bit integer. Setting the property
+	// converts the integer to its decimal text representation; getting the property
+	// interprets the element's text content as an integer.
+	// Numeric content: Use Content when the value may exceed the range of a 32-bit
+	// integer or when the exact lexical representation must be preserved.
+	void put_ContentInt(int newVal);
 
-	// Replace the content of the child having a specific tag,
-	// or if it doesn't already exist, create a new child having the tag/value.
-	void UpdateChildContent(const char *tag, const char *value);
+	// Gets or sets the document type declaration associated with the XML document.
+	// 
+	// The value represents the document-level DOCTYPE declaration, for example
+	// _LT_!DOCTYPE note SYSTEM "note.dtd"_GT_.
+	// 
+	// Document-level setting: Although this property may be accessed from any element
+	// reference in the tree, the DOCTYPE belongs to the XML document as a whole rather
+	// than to an individual element.
+	void get_DocType(CkString &str);
+	// Gets or sets the document type declaration associated with the XML document.
+	// 
+	// The value represents the document-level DOCTYPE declaration, for example
+	// _LT_!DOCTYPE note SYSTEM "note.dtd"_GT_.
+	// 
+	// Document-level setting: Although this property may be accessed from any element
+	// reference in the tree, the DOCTYPE belongs to the XML document as a whole rather
+	// than to an individual element.
+	const char *docType(void);
+	// Gets or sets the document type declaration associated with the XML document.
+	// 
+	// The value represents the document-level DOCTYPE declaration, for example
+	// _LT_!DOCTYPE note SYSTEM "note.dtd"_GT_.
+	// 
+	// Document-level setting: Although this property may be accessed from any element
+	// reference in the tree, the DOCTYPE belongs to the XML document as a whole rather
+	// than to an individual element.
+	void put_DocType(const char *newVal);
 
-	// Return true if the node's content matches the wildcarded pattern.
-	// A '*' matches 0 or more of any character, a '?' matches any one character.
-	bool ContentMatches(const char *pattern, bool caseSensitive);
+	// Controls whether a byte order mark (BOM, also called a preamble) is written when
+	// XML is saved to a file. The default is false.
+	// 
+	// This setting is relevant to encodings for which a BOM can be emitted, such as
+	// UTF-8 and UTF-16. It does not affect XML returned as a language string by
+	// methods such as GetXml.
+	// 
+	bool get_EmitBom(void);
+	// Controls whether a byte order mark (BOM, also called a preamble) is written when
+	// XML is saved to a file. The default is false.
+	// 
+	// This setting is relevant to encodings for which a BOM can be emitted, such as
+	// UTF-8 and UTF-16. It does not affect XML returned as a language string by
+	// methods such as GetXml.
+	// 
+	void put_EmitBom(bool newVal);
 
-	// Same as ContentMatches, but matches the content of the child having a specific tag.
-	bool ChildContentMatches(const char *tag, const char *pattern, bool caseSensitive);
+	// Controls whether XML emitted by GetXml and GetXmlSb is compact. When true,
+	// unnecessary formatting whitespace and line breaks are omitted. The default is
+	// false for backward compatibility.
+	// Formatting only: Compact output changes presentation, not the XML tree or its
+	// element content.
+	bool get_EmitCompact(void);
+	// Controls whether XML emitted by GetXml and GetXmlSb is compact. When true,
+	// unnecessary formatting whitespace and line breaks are omitted. The default is
+	// false for backward compatibility.
+	// Formatting only: Compact output changes presentation, not the XML tree or its
+	// element content.
+	void put_EmitCompact(bool newVal);
 
-	void get_Tag(CkString &str);
-	void put_Tag(const char *newVal);
+	// Controls whether the XML declaration is included when XML is emitted. The
+	// default is true. When set to false, output methods such as GetXml and
+	// SaveXml omit the declaration.
+	// 
+	// An XML declaration is the leading construct such as _LT_?xml version="1.0"
+	// encoding="utf-8"?_GT_.
+	// 
+	bool get_EmitXmlDecl(void);
+	// Controls whether the XML declaration is included when XML is emitted. The
+	// default is true. When set to false, output methods such as GetXml and
+	// SaveXml omit the declaration.
+	// 
+	// An XML declaration is the leading construct such as _LT_?xml version="1.0"
+	// encoding="utf-8"?_GT_.
+	// 
+	void put_EmitXmlDecl(bool newVal);
 
-	long get_NumAttributes();
-
-	bool get_Standalone(void);
-	void put_Standalone(bool newVal);
-
-	void get_Encoding(CkString &str);  // such as iso-8859-1
+	// Gets or sets the encoding value used in the XML declaration. The default is
+	// utf-8. This is a document-level setting and may be accessed from any element in
+	// the tree.
+	// 
+	// When XML is loaded, Chilkat sets this property from the encoding declared by the
+	// input XML when one is present. If no encoding is declared, the property is reset
+	// to utf-8.
+	// 
+	// Important: Changing Encoding changes the declared/output encoding used when XML
+	// is serialized; it does not reinterpret or transcode the already-stored Unicode
+	// text inside the in-memory tree.
+	void get_Encoding(CkString &str);
+	// Gets or sets the encoding value used in the XML declaration. The default is
+	// utf-8. This is a document-level setting and may be accessed from any element in
+	// the tree.
+	// 
+	// When XML is loaded, Chilkat sets this property from the encoding declared by the
+	// input XML when one is present. If no encoding is declared, the property is reset
+	// to utf-8.
+	// 
+	// Important: Changing Encoding changes the declared/output encoding used when XML
+	// is serialized; it does not reinterpret or transcode the already-stored Unicode
+	// text inside the in-memory tree.
+	const char *encoding(void);
+	// Gets or sets the encoding value used in the XML declaration. The default is
+	// utf-8. This is a document-level setting and may be accessed from any element in
+	// the tree.
+	// 
+	// When XML is loaded, Chilkat sets this property from the encoding declared by the
+	// input XML when one is present. If no encoding is declared, the property is reset
+	// to utf-8.
+	// 
+	// Important: Changing Encoding changes the declared/output encoding used when XML
+	// is serialized; it does not reinterpret or transcode the already-stored Unicode
+	// text inside the in-memory tree.
 	void put_Encoding(const char *newVal);
 
+	// Provides a substitution value for [i] in Chilkat tag paths and ChilkatPath
+	// expressions. When a path contains [i], the current value of this property is
+	// substituted for I.
+	// Loop-friendly paths: The I, J, and K properties make it convenient to reuse a
+	// path expression inside nested loops without constructing a new path string for
+	// every index.
+	int get_I(void);
+	// Provides a substitution value for [i] in Chilkat tag paths and ChilkatPath
+	// expressions. When a path contains [i], the current value of this property is
+	// substituted for I.
+	// Loop-friendly paths: The I, J, and K properties make it convenient to reuse a
+	// path expression inside nested loops without constructing a new path string for
+	// every index.
+	void put_I(int newVal);
 
-	bool QEncodeContent(const char *charset, const CkByteData &db);
-	bool BEncodeContent(const char *charset, const CkByteData &db);
+	// Returns true if this element's content consists only of characters allowed in
+	// standard Base64 text, with whitespace ignored. Standard Base64 uses A-Z, a-z,
+	// 0-9, +, /, and optional trailing = padding.
+	// Syntax check, not semantic validation: A value can contain only Base64
+	// characters and still not represent the data your application expects. This
+	// property is useful as a quick content-format test.
+	bool get_IsBase64(void);
+
+	// Provides a substitution value for [j] in Chilkat tag paths and ChilkatPath
+	// expressions. When a path contains [j], the current value of this property is
+	// substituted for J.
+	// Loop-friendly paths: The I, J, and K properties make it convenient to reuse a
+	// path expression inside nested loops without constructing a new path string for
+	// every index.
+	int get_J(void);
+	// Provides a substitution value for [j] in Chilkat tag paths and ChilkatPath
+	// expressions. When a path contains [j], the current value of this property is
+	// substituted for J.
+	// Loop-friendly paths: The I, J, and K properties make it convenient to reuse a
+	// path expression inside nested loops without constructing a new path string for
+	// every index.
+	void put_J(int newVal);
+
+	// Provides a substitution value for [k] in Chilkat tag paths and ChilkatPath
+	// expressions. When a path contains [k], the current value of this property is
+	// substituted for K.
+	// Loop-friendly paths: The I, J, and K properties make it convenient to reuse a
+	// path expression inside nested loops without constructing a new path string for
+	// every index.
+	int get_K(void);
+	// Provides a substitution value for [k] in Chilkat tag paths and ChilkatPath
+	// expressions. When a path contains [k], the current value of this property is
+	// substituted for K.
+	// Loop-friendly paths: The I, J, and K properties make it convenient to reuse a
+	// path expression inside nested loops without constructing a new path string for
+	// every index.
+	void put_K(int newVal);
+
+	// Returns the number of attributes on this element.
+	// 
+	// For example, _LT_tag attr1="value1" attr2="value2"_GT_..._LT_/tag_GT_ has two
+	// attributes. Attribute indexes used by methods such as GetAttributeName and
+	// GetAttributeValue are zero-based.
+	// 
+	int get_NumAttributes(void);
+
+	// Returns the number of direct child elements of this element. Descendants below
+	// those children are not included in the count.
+	// Direct children only: Use traversal or search methods when you need to inspect
+	// the entire subtree rather than only the immediate children.
+	int get_NumChildren(void);
+
+	// Controls case sensitivity for the XML sorting methods. Set to true for
+	// case-insensitive string comparisons or false for case-sensitive comparisons.
+	bool get_SortCaseInsensitive(void);
+	// Controls case sensitivity for the XML sorting methods. Set to true for
+	// case-insensitive string comparisons or false for case-sensitive comparisons.
+	void put_SortCaseInsensitive(bool newVal);
+
+	// Controls the standalone pseudo-attribute in the XML declaration. This is a
+	// document-level setting and may be accessed from any element in the tree.
+	// 
+	// Setting this property to true causes the declaration to include
+	// standalone="yes".
+	// 
+	// XML declaration: The standalone declaration concerns whether the document relies
+	// on external markup declarations. It is metadata in the XML declaration; it does
+	// not by itself validate or alter the document.
+	bool get_Standalone(void);
+	// Controls the standalone pseudo-attribute in the XML declaration. This is a
+	// document-level setting and may be accessed from any element in the tree.
+	// 
+	// Setting this property to true causes the declaration to include
+	// standalone="yes".
+	// 
+	// XML declaration: The standalone declaration concerns whether the document relies
+	// on external markup declarations. It is metadata in the XML declaration; it does
+	// not by itself validate or alter the document.
+	void put_Standalone(bool newVal);
+
+	// When Strict is true, the XML loading methods first check that the input is
+	// well-formed XML. If it is not, the load fails and the contents of this Xml
+	// object are left unchanged. The default is false.
+	// 
+	// This applies to LoadXml[1], LoadXml2[2], LoadSb[3], LoadBd[4], LoadXmlFile[5]
+	// and LoadXmlFile2[6].
+	// 
+	// Chilkat's XML parser is deliberately tolerant. By default it can accept input
+	// that is not well-formed, succeed, and leave a partially populated tree. That is
+	// convenient when the goal is a best-effort parse of imperfect input, but it is
+	// the wrong behavior when a silently dropped element or attribute changes what the
+	// application does.
+	// 
+	// Set Strict to true for XML carrying configuration, credentials, signed
+	// content, or security parameters, where an element that quietly failed to load
+	// would be acted on as though it had never been present.
+	// 
+	// The check is for XML 1.0 well-formedness only. It is not a validating parse: no
+	// DTD or schema is read, and the document is not checked against one. Markup
+	// declarations inside an internal DTD subset are skipped rather than parsed.
+	// 
+	// Note: The default is false so that existing applications are unaffected. When
+	// a strict load is rejected, this Xml object keeps whatever it held before the
+	// call, so a failed reload never leaves the object empty.
+	// 
+	// References:
+	// [1] #LoadXml
+	// [2] #LoadXml2
+	// [3] #LoadSb
+	// [4] #LoadBd
+	// [5] #LoadXmlFile
+	// [6] #LoadXmlFile2
+	bool get_Strict(void);
+	// When Strict is true, the XML loading methods first check that the input is
+	// well-formed XML. If it is not, the load fails and the contents of this Xml
+	// object are left unchanged. The default is false.
+	// 
+	// This applies to LoadXml[1], LoadXml2[2], LoadSb[3], LoadBd[4], LoadXmlFile[5]
+	// and LoadXmlFile2[6].
+	// 
+	// Chilkat's XML parser is deliberately tolerant. By default it can accept input
+	// that is not well-formed, succeed, and leave a partially populated tree. That is
+	// convenient when the goal is a best-effort parse of imperfect input, but it is
+	// the wrong behavior when a silently dropped element or attribute changes what the
+	// application does.
+	// 
+	// Set Strict to true for XML carrying configuration, credentials, signed
+	// content, or security parameters, where an element that quietly failed to load
+	// would be acted on as though it had never been present.
+	// 
+	// The check is for XML 1.0 well-formedness only. It is not a validating parse: no
+	// DTD or schema is read, and the document is not checked against one. Markup
+	// declarations inside an internal DTD subset are skipped rather than parsed.
+	// 
+	// Note: The default is false so that existing applications are unaffected. When
+	// a strict load is rejected, this Xml object keeps whatever it held before the
+	// call, so a failed reload never leaves the object empty.
+	// 
+	// References:
+	// [1] #LoadXml
+	// [2] #LoadXml2
+	// [3] #LoadSb
+	// [4] #LoadBd
+	// [5] #LoadXmlFile
+	// [6] #LoadXmlFile2
+	void put_Strict(bool newVal);
+
+	// Gets or sets the element name for this element, including any namespace prefix.
+	// For example, the tag for _LT_soapenv:Body_GT_ is soapenv:Body.
+	// 
+	// Use TagNsPrefix and TagUnprefixed when the prefix and local portion are needed
+	// separately.
+	// 
+	void get_Tag(CkString &str);
+	// Gets or sets the element name for this element, including any namespace prefix.
+	// For example, the tag for _LT_soapenv:Body_GT_ is soapenv:Body.
+	// 
+	// Use TagNsPrefix and TagUnprefixed when the prefix and local portion are needed
+	// separately.
+	// 
+	const char *tag(void);
+	// Gets or sets the element name for this element, including any namespace prefix.
+	// For example, the tag for _LT_soapenv:Body_GT_ is soapenv:Body.
+	// 
+	// Use TagNsPrefix and TagUnprefixed when the prefix and local portion are needed
+	// separately.
+	// 
+	void put_Tag(const char *newVal);
+
+	// Gets or sets the namespace prefix portion of this element's tag. For
+	// soapenv:Envelope, the namespace prefix is soapenv.
+	// Prefix vs. namespace URI: This property deals with the lexical prefix in the tag
+	// name. A prefix is not itself the namespace URI; namespace bindings are expressed
+	// through xmlns attributes in the XML.
+	void get_TagNsPrefix(CkString &str);
+	// Gets or sets the namespace prefix portion of this element's tag. For
+	// soapenv:Envelope, the namespace prefix is soapenv.
+	// Prefix vs. namespace URI: This property deals with the lexical prefix in the tag
+	// name. A prefix is not itself the namespace URI; namespace bindings are expressed
+	// through xmlns attributes in the XML.
+	const char *tagNsPrefix(void);
+	// Gets or sets the namespace prefix portion of this element's tag. For
+	// soapenv:Envelope, the namespace prefix is soapenv.
+	// Prefix vs. namespace URI: This property deals with the lexical prefix in the tag
+	// name. A prefix is not itself the namespace URI; namespace bindings are expressed
+	// through xmlns attributes in the XML.
+	void put_TagNsPrefix(const char *newVal);
+
+	// Returns the Chilkat tag path needed to reach this element from the document
+	// root. If this object currently references the root element, the returned path is
+	// the empty string.
+	// Not XPath: A Chilkat tag path is Chilkat's own navigation syntax, typically
+	// using | between element names. It is not an XPath expression.
+	void get_TagPath(CkString &str);
+	// Returns the Chilkat tag path needed to reach this element from the document
+	// root. If this object currently references the root element, the returned path is
+	// the empty string.
+	// Not XPath: A Chilkat tag path is Chilkat's own navigation syntax, typically
+	// using | between element names. It is not an XPath expression.
+	const char *tagPath(void);
+
+	// Gets or sets the unprefixed portion of this element's tag. For soapenv:Envelope,
+	// the unprefixed tag is Envelope.
+	// 
+	// Use TagNsPrefix to access the prefix separately.
+	// 
+	void get_TagUnprefixed(CkString &str);
+	// Gets or sets the unprefixed portion of this element's tag. For soapenv:Envelope,
+	// the unprefixed tag is Envelope.
+	// 
+	// Use TagNsPrefix to access the prefix separately.
+	// 
+	const char *tagUnprefixed(void);
+	// Gets or sets the unprefixed portion of this element's tag. For soapenv:Envelope,
+	// the unprefixed tag is Envelope.
+	// 
+	// Use TagNsPrefix to access the prefix separately.
+	// 
+	void put_TagUnprefixed(const char *newVal);
+
+	// Returns the identifier of the XML tree to which this element belongs. Elements
+	// in the same XML document have the same TreeId.
+	// Useful for element references: Multiple Xml objects can reference different
+	// elements in the same underlying tree. Comparing TreeId values is a convenient
+	// way to determine whether two element references belong to that same tree.
+	int get_TreeId(void);
+
+	// Provides a catch-all string for uncommon XML behaviors. The default is the empty
+	// string, which is appropriate for normal use.
+	// 
+	// Leave this property empty unless Chilkat documentation or support identifies a
+	// specific option needed for a specialized interoperability case.
+	// 
+	void get_UncommonOptions(CkString &str);
+	// Provides a catch-all string for uncommon XML behaviors. The default is the empty
+	// string, which is appropriate for normal use.
+	// 
+	// Leave this property empty unless Chilkat documentation or support identifies a
+	// specific option needed for a specialized interoperability case.
+	// 
+	const char *uncommonOptions(void);
+	// Provides a catch-all string for uncommon XML behaviors. The default is the empty
+	// string, which is appropriate for normal use.
+	// 
+	// Leave this property empty unless Chilkat documentation or support identifies a
+	// specific option needed for a specialized interoperability case.
+	// 
+	void put_UncommonOptions(const char *newVal);
+
+
+
+	// ----------------------
+	// Methods
+	// ----------------------
+	// Traverses the subtree rooted at the calling element and concatenates the text
+	// content of all elements whose tag equals tag.
+	// 
+	// skipTags is a vertical-bar-delimited list of tag names whose entire subtrees are
+	// excluded from the accumulation. For example, script|style skips elements rooted
+	// at either of those tags.
+	// 
+	bool AccumulateTagContent(const char *tag, const char *skipTags, CkString &outStr);
+
+	// Traverses the subtree rooted at the calling element and concatenates the text
+	// content of all elements whose tag equals tag.
+	// 
+	// skipTags is a vertical-bar-delimited list of tag names whose entire subtrees are
+	// excluded from the accumulation. For example, script|style skips elements rooted
+	// at either of those tags.
+	// 
+	const char *accumulateTagContent(const char *tag, const char *skipTags);
+
+	// Adds an attribute named name with the specified string value to the calling
+	// element.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	// When an attribute may already exist: Use AddOrUpdateAttribute or UpdateAttribute
+	// when the desired behavior is to update an existing attribute value instead of
+	// requiring a new attribute.
+	bool AddAttribute(const char *name, const char *value);
+
+
+	// Adds an attribute named name whose value is the decimal representation of value.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool AddAttributeInt(const char *name, int value);
+
+
+	// Adds the entire XML subtree referenced by tree as a new direct child of the
+	// calling element.
+	// 
+	// If tree already belongs to another XML document, the subtree is transferred to
+	// the destination tree rather than copied as an unrelated duplicate.
+	// 
+	// Tree ownership: After moving a subtree between documents, its elements belong to
+	// the destination tree. TreeId can be used to determine which tree an element
+	// reference belongs to.
+	bool AddChildTree(CkXml &tree);
+
+
+	// Sets the string value of an attribute on the calling element. If an attribute
+	// named name already exists, its value is replaced; otherwise the attribute is
+	// added.
+	void AddOrUpdateAttribute(const char *name, const char *value);
+
+
+	// Sets an integer-valued attribute on the calling element. If an attribute named
+	// name already exists, its value is replaced with the decimal representation of
+	// value; otherwise the attribute is added.
+	void AddOrUpdateAttributeI(const char *name, int value);
+
+
+	// Adds an XML stylesheet processing instruction to the document. Pass the complete
+	// processing-instruction text, for example:_LT_?xml-stylesheet href="mystyle.css"
+	// title="Compact" type="text/css"?_GT_
+	// Processing instruction: An XML stylesheet declaration associates stylesheet
+	// metadata with the XML document; it does not apply or execute the stylesheet.
+	void AddStyleSheet(const char *styleSheet);
+
+
+	// Treats the named attribute value as an integer, adds amount, and stores the
+	// resulting integer back in the attribute.
+	// 
+	// If the attribute does not yet exist, this method behaves like
+	// AddOrUpdateAttributeI and creates it with amount as the value.
+	// 
+	void AddToAttribute(const char *name, int amount);
+
+
+	// Finds the child identified by tag, interprets its content as an integer, adds
+	// amount, and stores the resulting integer as the child's new content.
+	void AddToChildContent(const char *tag, int amount);
+
+
+	// Interprets this element's content as an integer, adds amount, and stores the
+	// resulting integer as the new content.
+	void AddToContent(int amount);
+
+
+	// Appends str to the existing text content of the calling element without
+	// replacing its child elements.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool AppendToContent(const char *str);
+
+
+	// Sets this element's content to an RFC 2047-style encoded-word using Base64 (the
+	// B encoding). inData contains bytes in the character encoding named by charset.
+	// 
+	// For example, using Big5 can produce content similar to =?Big5?B?pHCtsw==?=. The
+	// encoded payload is Base64 text inside the encoded-word syntax.
+	// 
+	// Use DecodeContent to recover the encoded bytes.
+	// 
+	// Purpose: B-encoding here is MIME encoded-word syntax for representing non-ASCII
+	// text as 7-bit text. It is not XML Base64 storage and it is not encryption.
+	bool BEncodeContent(const char *charset, CkByteData &inData);
+
+
+	// Returns true if the child identified by tagPath has content matching pattern;
+	// otherwise returns false. caseSensitive controls whether letter case is
+	// significant.
+	// 
+	// The pattern may contain * wildcards, where each asterisk matches zero or more
+	// characters.
+	// 
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	bool ChildContentMatches(const char *tagPath, const char *pattern, bool caseSensitive);
+
+
+	// Evaluates a Chilkat-specific path command that can navigate from the current
+	// element, return element content or an attribute value, or move the caller's
+	// internal element reference.
+	// 
+	// This syntax is not XPath. Commands are separated by vertical bars and the
+	// expression ends with a return command:
+	// 
+	// command|command|command|...|returnCommand
+	// 
+	// Navigation commands include:
+	// 
+	//     * TagName - first direct child having that tag.
+	//     * TagName[n] - the indexed direct child having that tag.
+	//     *.. - parent.
+	//     * ++ / -- - next / previous sibling.
+	//     * TagName{Content} - first direct child with that tag and exact content.
+	//     * /T/TagName - traverse the subtree and find the first element with that
+	//     tag.
+	//     * /C/TagName,ContentPattern - traverse for a tag whose content matches a
+	//     wildcard pattern.
+	//     * /C/ContentPattern - traverse for any tag whose content matches a wildcard
+	//     pattern.
+	//     * /A/TagName,AttrName,AttrValuePattern - traverse for a tag having a
+	//     matching attribute value.
+	// 
+	// The final return command is:
+	// 
+	//     * * - return the current element's content.
+	//     * (AttrName) - return an attribute value.
+	//     * $ - move this Xml object to the selected element and return an empty
+	//     string.
+	// Index substitution: The I, J, and K properties can be used with [i], [j], and
+	// [k] in path expressions.
+	bool ChilkatPath(const char *pathCmd, CkString &outStr);
+
+	// Evaluates a Chilkat-specific path command that can navigate from the current
+	// element, return element content or an attribute value, or move the caller's
+	// internal element reference.
+	// 
+	// This syntax is not XPath. Commands are separated by vertical bars and the
+	// expression ends with a return command:
+	// 
+	// command|command|command|...|returnCommand
+	// 
+	// Navigation commands include:
+	// 
+	//     * TagName - first direct child having that tag.
+	//     * TagName[n] - the indexed direct child having that tag.
+	//     *.. - parent.
+	//     * ++ / -- - next / previous sibling.
+	//     * TagName{Content} - first direct child with that tag and exact content.
+	//     * /T/TagName - traverse the subtree and find the first element with that
+	//     tag.
+	//     * /C/TagName,ContentPattern - traverse for a tag whose content matches a
+	//     wildcard pattern.
+	//     * /C/ContentPattern - traverse for any tag whose content matches a wildcard
+	//     pattern.
+	//     * /A/TagName,AttrName,AttrValuePattern - traverse for a tag having a
+	//     matching attribute value.
+	// 
+	// The final return command is:
+	// 
+	//     * * - return the current element's content.
+	//     * (AttrName) - return an attribute value.
+	//     * $ - move this Xml object to the selected element and return an empty
+	//     string.
+	// Index substitution: The I, J, and K properties can be used with [i], [j], and
+	// [k] in path expressions.
+	const char *chilkatPath(const char *pathCmd);
+
+	// Clears the calling element by removing all child elements, attributes, and text
+	// content, and resets its tag name to unnamed.
+	// 
+	// The element itself remains in the tree; this method clears its contents rather
+	// than removing the element from its parent.
+	// 
+	void Clear(void);
+
+
+	// Returns true if this element's content matches pattern; otherwise returns
+	// false. caseSensitive controls whether letter case is significant.
+	// 
+	// The pattern may contain * wildcards, where each asterisk matches zero or more
+	// characters.
+	// 
+	bool ContentMatches(const char *pattern, bool caseSensitive);
+
+
+	// Copies the Tag, Content, and attributes from node to the calling element.
+	// Not a subtree copy: This method does not copy the source element's children. Use
+	// a tree-oriented method such as AddChildTree or SwapTree when child structure is
+	// part of the operation.
+	void Copy(CkXml &node);
+
+
+	// Changes this Xml object so that it references the same underlying XML element as
+	// copyFromNode. The caller's previous element reference is discarded.
+	// Reference operation: CopyRef does not copy XML data. After the call, both Xml
+	// objects refer to the same element, so edits through either reference affect the
+	// same tree element.
+	void CopyRef(CkXml &copyFromNode);
+
+
+	// Decodes this element's RFC 2047-style Q- or B-encoded content and returns the
+	// decoded bytes.
+	// 
+	// This is the inverse of QEncodeContent and BEncodeContent.
+	// 
 	bool DecodeContent(CkByteData &outData);
 
-	bool UpdateAttribute(const char *attrName, const char *attrValue);
 
-	void SortByTag(bool ascending);
-	void SortByContent(bool ascending);
-	void SortByAttribute(const char *attrName, bool ascending);
+	// Decodes HTML character entities found in str and returns the decoded text. This
+	// is a utility operation; it does not modify the XML tree unless the returned
+	// string is assigned to an element.
+	// 
+	// For example, an HTML entity such as & is decoded to &.
+	// 
+	bool DecodeEntities(const char *str, CkString &outStr);
 
-	void SortRecordsByContent(const char *sortTag, bool ascending);
-	void SortRecordsByAttribute(const char *sortTag, const char *attrName, bool ascending);
-	CkXml *FindNextRecord(const char *tag, const char *contentPattern);
+	// Decodes HTML character entities found in str and returns the decoded text. This
+	// is a utility operation; it does not modify the XML tree unless the returned
+	// string is assigned to an element.
+	// 
+	// For example, an HTML entity such as & is decoded to &.
+	// 
+	const char *decodeEntities(const char *str);
 
-	bool HasChildWithTag(const char *tag);
+	// Decrypts element content previously produced by EncryptContent, using the same
+	// password, and restores the original plaintext content.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	// Compatibility-oriented encryption: This method is paired specifically with
+	// EncryptContent. It is not a general XML Encryption (XML-Enc) implementation.
+	bool DecryptContent(const char *password);
 
-	bool GetChildBoolValue(const char *tag);
-	int GetChildIntValue(const char *tag);
+
+	// Encrypts the calling element's text content using Chilkat's password-based
+	// 128-bit AES-CBC format and replaces the plaintext content with Base64-encoded
+	// encrypted data.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	// Scope: Only this element's content is encrypted. The tag, attributes, and child
+	// elements are not encrypted by this method. Use DecryptContent with the same
+	// password to restore the content.
+	bool EncryptContent(const char *password);
 
 
-	void RemoveChildWithContent(const char *content);
-	bool HasChildWithTagAndContent(const char *tag, const char *content);
-	bool HasChildWithContent(const char *content);
-	void RemoveAllChildren(void);
-	void RemoveChildByIndex(long index);
-	bool AccumulateTagContent(const char *tag, const char *skipTags, CkString &outStr);
-	bool GetChildContentByIndex(long index, CkString &outStr);
-	bool GetChildTag(long index, CkString &outStr);
-	void AddToAttribute(const char *name, long amount);
-	void AddToContent(long amount);
-	void AddToChildContent(const char *tag, long amount);
-	void AddOrUpdateAttributeI(const char *name, long value);
-	void AddOrUpdateAttribute(const char *name, const char *value);
+	// Removes the direct child at zero-based index from the calling element and
+	// returns an Xml object for the detached child subtree.
+	// Extract vs. remove: Unlike RemoveChildByIndex, extraction gives the caller a
+	// reference to the removed subtree so it can be retained, inspected, or attached
+	// elsewhere.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *ExtractChildByIndex(int index);
+
+
+	// Finds, removes, and returns the first child selected by tagPath and the optional
+	// attribute criteria.
+	// 
+	// If attrName and attrValue are empty, the first child matching the tag/path is
+	// extracted. If attrName is provided, the child must have that attribute. If
+	// attrValue is also provided, the attribute value must match exactly.
+	// 
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *ExtractChildByName(const char *tagPath, const char *attrName, const char *attrValue);
+
+
+	// Returns an Xml object referencing the child selected by tagPath. The calling
+	// object remains positioned on its current element.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *FindChild(const char *tagPath);
+
+
+	// Moves the calling Xml object's internal reference to the child selected by
+	// tagPath. Returns true when the child is found and the move succeeds; otherwise
+	// returns false.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	bool FindChild2(const char *tagPath);
+
+
+	// Finds the next direct child record for which the descendant identified by
+	// tagPath has content matching contentPattern. This is intended for iterating
+	// record-like child elements.
+	// 
+	// The content pattern may contain * wildcards.
+	// 
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *FindNextRecord(const char *tagPath, const char *contentPattern);
+
+
+	// Returns the child selected by tagPath if it already exists. If it does not
+	// exist, creates the required child path with empty content and returns the
+	// resulting child element.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath. Use NewChild instead when duplicate
+	// children with the same tag are intentional.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *FindOrAddNewChild(const char *tagPath);
+
+
+	// Returns an Xml object referencing the first direct child of the calling element.
+	// 
+	// A common forward-iteration pattern is FirstChild followed by repeated calls to
+	// NextSibling.
+	// 
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *FirstChild(void);
+
+
+	// Moves the calling Xml object's internal reference to its first direct child.
+	// Returns true if a first child exists; otherwise returns false.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	bool FirstChild2(void);
+
+
+	// Returns the name of the attribute at zero-based index. Use NumAttributes to
+	// determine the valid index range.
+	bool GetAttributeName(int index, CkString &outStr);
+
+	// Returns the name of the attribute at zero-based index. Use NumAttributes to
+	// determine the valid index range.
+	const char *getAttributeName(int index);
+	// Returns the name of the attribute at zero-based index. Use NumAttributes to
+	// determine the valid index range.
+	const char *attributeName(int index);
+
+
+	// Returns the value of the attribute at zero-based index. Use NumAttributes to
+	// determine the valid index range.
+	bool GetAttributeValue(int index, CkString &outStr);
+
+	// Returns the value of the attribute at zero-based index. Use NumAttributes to
+	// determine the valid index range.
+	const char *getAttributeValue(int index);
+	// Returns the value of the attribute at zero-based index. Use NumAttributes to
+	// determine the valid index range.
+	const char *attributeValue(int index);
+
+
+	// Returns the value of the attribute at zero-based index, interpreted as a 32-bit
+	// integer.
+	int GetAttributeValueInt(int index);
+
+
+	// Returns the value of the attribute named name on the calling element.
+	// 
+	// Use HasAttribute when the application must distinguish a missing attribute from
+	// an attribute whose value is empty.
+	// 
+	bool GetAttrValue(const char *name, CkString &outStr);
+
+	// Returns the value of the attribute named name on the calling element.
+	// 
+	// Use HasAttribute when the application must distinguish a missing attribute from
+	// an attribute whose value is empty.
+	// 
+	const char *getAttrValue(const char *name);
+	// Returns the value of the attribute named name on the calling element.
+	// 
+	// Use HasAttribute when the application must distinguish a missing attribute from
+	// an attribute whose value is empty.
+	// 
+	const char *attrValue(const char *name);
+
+
+	// Returns the value of the attribute named name interpreted as a 32-bit integer.
+	// Returns 0 if the attribute does not exist.
+	// Ambiguous zero: Because a missing attribute and an attribute containing zero can
+	// both yield 0, call HasAttribute first when that distinction matters.
+	int GetAttrValueInt(const char *name);
+
+
+	// Decodes this element's Base64-stored binary content and returns the resulting
+	// bytes. Set unzipFlag and decryptFlag to match the transformations that were
+	// applied when the content was stored; supply the same password when decryption is
+	// requested.
+	// Reverse the storage pipeline: When binary content was compressed and/or
+	// encrypted by SetBinaryContent, retrieval must request the corresponding
+	// decompression/decryption steps so the original bytes are recovered.
+	bool GetBinaryContent(bool unzipFlag, bool decryptFlag, const char *password, CkByteData &outData);
+
+
+	// Returns an Xml object referencing the direct child at zero-based index. The
+	// calling object remains positioned on its current element.
+	// 
+	// Use NumChildren to determine the valid child range.
+	// 
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *GetChild(int index);
+
+
+	// Moves the calling Xml object's internal reference to the direct child at
+	// zero-based index. Returns true on success and false if the child cannot be
+	// selected.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	bool GetChild2(int index);
+
+
+	// Returns the value of attribute attrName on the descendant element selected by
+	// tagPath.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	bool GetChildAttrValue(const char *tagPath, const char *attrName, CkString &outStr);
+
+	// Returns the value of attribute attrName on the descendant element selected by
+	// tagPath.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	const char *getChildAttrValue(const char *tagPath, const char *attrName);
+	// Returns the value of attribute attrName on the descendant element selected by
+	// tagPath.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	const char *childAttrValue(const char *tagPath, const char *attrName);
+
+
+	// Returns the integer content of the child selected by tagPath as a Boolean value:
+	// content equal to 0 yields false; a non-zero integer yields true.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	bool GetChildBoolValue(const char *tagPath);
+
+
+	// Returns the text content of the child selected by tagPath.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// Content only: The returned value is the child element's direct Content; nested
+	// child elements are not serialized into this string.
+	bool GetChildContent(const char *tagPath, CkString &outStr);
+
+	// Returns the text content of the child selected by tagPath.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// Content only: The returned value is the child element's direct Content; nested
+	// child elements are not serialized into this string.
+	const char *getChildContent(const char *tagPath);
+	// Returns the text content of the child selected by tagPath.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// Content only: The returned value is the child element's direct Content; nested
+	// child elements are not serialized into this string.
+	const char *childContent(const char *tagPath);
+
+
+	// Returns the text content of the direct child at zero-based index. Use
+	// NumChildren to determine the valid range.
+	bool GetChildContentByIndex(int index, CkString &outStr);
+
+	// Returns the text content of the direct child at zero-based index. Use
+	// NumChildren to determine the valid range.
+	const char *getChildContentByIndex(int index);
+	// Returns the text content of the direct child at zero-based index. Use
+	// NumChildren to determine the valid range.
+	const char *childContentByIndex(int index);
+
+
+	// Finds the element selected by tagPath and appends that element's text content to
+	// sb.
+	// 
+	// The existing contents of the StringBuilder are preserved.
+	// 
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool GetChildContentSb(const char *tagPath, CkStringBuilder &sb);
+
+
+	// Returns the first direct child whose tag equals tag and whose text content
+	// exactly equals content.
+	// 
+	// The calling object remains positioned on its current element.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *GetChildExact(const char *tag, const char *content);
+
+
+	// Returns the content of the child selected by tagPath, interpreted as a 32-bit
+	// integer.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// Integer range: Use GetChildContent and parse the returned text separately when
+	// values may exceed the range of a 32-bit integer.
+	int GetChildIntValue(const char *tagPath);
+
+
+	// Returns the tag name of the direct child at zero-based index. Use NumChildren to
+	// determine the valid index range.
+	bool GetChildTag(int index, CkString &outStr);
+
+	// Returns the tag name of the direct child at zero-based index. Use NumChildren to
+	// determine the valid index range.
+	const char *getChildTag(int index);
+	// Returns the tag name of the direct child at zero-based index. Use NumChildren to
+	// determine the valid index range.
+	const char *childTag(int index);
+
+
+	// Returns the tag name of the direct child at zero-based index. Use NumChildren to
+	// determine the valid index range.
+	bool GetChildTagByIndex(int index, CkString &outStr);
+
+	// Returns the tag name of the direct child at zero-based index. Use NumChildren to
+	// determine the valid index range.
+	const char *getChildTagByIndex(int index);
+	// Returns the tag name of the direct child at zero-based index. Use NumChildren to
+	// determine the valid index range.
+	const char *childTagByIndex(int index);
+
+
+	// Returns the child selected by tagPath that also has an attribute named attrName
+	// whose value exactly equals attrValue.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *GetChildWithAttr(const char *tagPath, const char *attrName, const char *attrValue);
+
+
+	// Returns the first direct child whose text content exactly equals content. The
+	// child tag may be any value.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *GetChildWithContent(const char *content);
+
+
+	// Returns an Xml object referencing the child selected by tagPath. The calling
+	// object remains positioned on its current element.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *GetChildWithTag(const char *tagPath);
+
+
+	// Moves the calling Xml object's internal reference to the child selected by
+	// tagPath. Returns true when the child is found and the move succeeds; otherwise
+	// returns false.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	bool GetChildWithTag2(const char *tagPath);
+
+
+	// Returns the zero-based n th direct child whose tag exactly equals tag. Children
+	// with other tag names are ignored when counting matches.
+	// 
+	// Use NumChildrenHavingTag to determine how many matching children are available.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *GetNthChildWithTag(const char *tag, int n);
+
+
+	// Moves the calling Xml object's internal reference to the zero-based n th direct
+	// child whose tag equals tag. Returns true on success and false when no such
+	// child exists.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	bool GetNthChildWithTag2(const char *tag, int n);
+
+
+	// Returns an Xml object referencing this element's parent. Returns no parent when
+	// the current element is the document root.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *GetParent(void);
+
+
+	// Moves the calling Xml object's internal reference to its parent. Returns true
+	// if a parent exists; otherwise returns false when already at the root.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	bool GetParent2(void);
+
+
+	// Returns an Xml object referencing the root element of the XML tree that contains
+	// the current element. The calling object remains positioned on its current
+	// element.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *GetRoot(void);
+
+
+	// Moves the calling Xml object's internal reference to the root element of its XML
+	// tree.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	void GetRoot2(void);
+
+
+	// Returns a new Xml object that references the same underlying XML element as the
+	// calling object.
+	// Shared element reference: This is not a deep copy. Both objects reference the
+	// same element, so changes made through either object are changes to the same XML
+	// tree.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *GetSelf(void);
+
+
+	// Serializes the XML tree or subtree rooted at the current element and returns the
+	// XML text.
+	// 
+	// When called while positioned on the document root, the XML declaration is
+	// included if EmitXmlDecl is true. When called on a non-root element, only that
+	// subtree is emitted and the document declaration is not included.
+	// 
+	// EmitCompact, Encoding, Standalone, and related document/output properties affect
+	// serialization as applicable.
+	// 
+	// String vs. bytes: A language string is Unicode text. The Encoding declaration
+	// describes serialized XML encoding, while actual byte encoding matters when XML
+	// is written to a file or byte-oriented destination.
+	bool GetXml(CkString &outStr);
+
+	// Serializes the XML tree or subtree rooted at the current element and returns the
+	// XML text.
+	// 
+	// When called while positioned on the document root, the XML declaration is
+	// included if EmitXmlDecl is true. When called on a non-root element, only that
+	// subtree is emitted and the document declaration is not included.
+	// 
+	// EmitCompact, Encoding, Standalone, and related document/output properties affect
+	// serialization as applicable.
+	// 
+	// String vs. bytes: A language string is Unicode text. The Encoding declaration
+	// describes serialized XML encoding, while actual byte encoding matters when XML
+	// is written to a file or byte-oriented destination.
+	const char *getXml(void);
+	// Serializes the XML tree or subtree rooted at the current element and returns the
+	// XML text.
+	// 
+	// When called while positioned on the document root, the XML declaration is
+	// included if EmitXmlDecl is true. When called on a non-root element, only that
+	// subtree is emitted and the document declaration is not included.
+	// 
+	// EmitCompact, Encoding, Standalone, and related document/output properties affect
+	// serialization as applicable.
+	// 
+	// String vs. bytes: A language string is Unicode text. The Encoding declaration
+	// describes serialized XML encoding, while actual byte encoding matters when XML
+	// is written to a file or byte-oriented destination.
+	const char *xml(void);
+
+
+	// Serializes the XML tree or subtree rooted at the current element and appends the
+	// encoded XML bytes to bd.
+	// 
+	// The existing contents of the BinData object are preserved. The XML output
+	// encoding is governed by the XML document's output settings, including Encoding.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool GetXmlBd(CkBinData &bd);
+
+
+	// Serializes the XML tree or subtree rooted at the current element and appends the
+	// resulting XML text to sb.
+	// 
+	// The existing contents of sb are preserved. Output properties such as EmitCompact
+	// and EmitXmlDecl apply as appropriate.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool GetXmlSb(CkStringBuilder &sb);
+
+
+	// Returns true if the calling element has an attribute named name; otherwise
+	// returns false.
 	bool HasAttribute(const char *name);
 
-	const char *tag(void);
-	const char *content(void);
-	const char *encoding(void);
-	const char *getXml(void);
-	const char *getChildContent(const char *tag);
-	const char *getAttrValue(const char *name);
-	const char *getAttributeValue(long index);
-	const char *getAttributeName(long index);
-	const char *accumulateTagContent(const char *tag, const char *skipTags);
-	const char *getChildContentByIndex(long index);
-	const char *getChildTag(long index);
 
-	const char *childContent(const char *tag){ return getChildContent(tag); }
-	const char *attr(const char *name){ return getAttrValue(name); }
-	const char *attrValue(long index){ return getAttributeValue(index); }
-	const char *attrName(long index){ return getAttributeName(index); }
-	const char *xml(void){ return getXml(); }
-	// TAGEQUALS_BEGIN
-	bool TagEquals(const char *tag);
-	// TAGEQUALS_END
-	// CONTENTINT_BEGIN
-	int get_ContentInt(void);
-	void put_ContentInt(int newVal);
-	// CONTENTINT_END
-	// ADDATTRIBUTEINT_BEGIN
-	bool AddAttributeInt(const char *name, int value);
-	// ADDATTRIBUTEINT_END
-	// DECODEENTITIES_BEGIN
-	bool DecodeEntities(const char *str, CkString &outStr);
-	const char *decodeEntities(const char *str);
-	// DECODEENTITIES_END
-	// FINDCHILD2_BEGIN
-	bool FindChild2(const char *tag);
-	// FINDCHILD2_END
-	// GETATTRVALUEINT_BEGIN
-	int GetAttrValueInt(const char *name);
-	// GETATTRVALUEINT_END
-	// GETATTRIBUTEVALUEINT_BEGIN
-	int GetAttributeValueInt(int index);
-	// GETATTRIBUTEVALUEINT_END
-	// GETCHILDTAGBYINDEX_BEGIN
-	bool GetChildTagByIndex(int index, CkString &outStr);
-	const char *getChildTagByIndex(int index);
-	// GETCHILDTAGBYINDEX_END
-	// SAVEBINARYCONTENT_BEGIN
-	bool SaveBinaryContent(const char *path, bool unzipFlag, bool decryptFlag, const char *password);
-	// SAVEBINARYCONTENT_END
-	// SETBINARYCONTENTFROMFILE_BEGIN
-	bool SetBinaryContentFromFile(const char *path, bool zipFlag, bool encryptFlag, const char *password);
-	// SETBINARYCONTENTFROMFILE_END
-	// SORTBYATTRIBUTEINT_BEGIN
+	// Returns true if the calling element has an attribute named name whose value
+	// exactly equals value; otherwise returns false.
+	bool HasAttrWithValue(const char *name, const char *value);
+
+
+	// Returns true if any direct child has text content exactly equal to content;
+	// otherwise returns false.
+	bool HasChildWithContent(const char *content);
+
+
+	// Returns true if the child selected by tagPath exists; otherwise returns
+	// false.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	bool HasChildWithTag(const char *tagPath);
+
+
+	// Returns true if the child selected by tagPath exists and its text content
+	// exactly equals content; otherwise returns false.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	bool HasChildWithTagAndContent(const char *tagPath, const char *content);
+
+
+	// Inserts the entire subtree referenced by tree as a direct child immediately
+	// after the existing child at zero-based index.
+	// 
+	// If tree belongs to another XML document, the subtree is transferred to the
+	// destination tree.
+	// 
+	// Structural move: The operation preserves the subtree structure. The supplied
+	// tree is not flattened into text content.
+	void InsertChildTreeAfter(int index, CkXml &tree);
+
+
+	// Inserts the entire subtree referenced by tree as a direct child immediately
+	// before the existing child at zero-based index.
+	// 
+	// If tree belongs to another XML document, the subtree is transferred to the
+	// destination tree.
+	// 
+	// Structural move: The operation preserves the subtree structure. The supplied
+	// tree is not flattened into text content.
+	void InsertChildTreeBefore(int index, CkXml &tree);
+
+
+	// Returns an Xml object referencing the last direct child of the calling element.
+	// 
+	// A common reverse-iteration pattern is LastChild followed by repeated calls to
+	// PreviousSibling.
+	// 
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *LastChild(void);
+
+
+	// Moves the calling Xml object's internal reference to its last direct child.
+	// Returns true if a last child exists; otherwise returns false.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	bool LastChild2(void);
+
+
+	// Parses XML from the bytes contained in bd and replaces the calling object's
+	// current XML tree with the loaded document.
+	// 
+	// If autoTrim is true, leading and trailing whitespace is removed from each leaf
+	// element's text content during loading.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool LoadBd(CkBinData &bd, bool autoTrim);
+
+
+	// Parses XML from the current contents of sb and replaces the calling object's
+	// current XML tree with the loaded document.
+	// 
+	// If autoTrim is true, leading and trailing whitespace is removed from each leaf
+	// element's text content while loading.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool LoadSb(CkStringBuilder &sb, bool autoTrim);
+
+
+	// Parses the XML text in xmlData and replaces the calling object's current XML
+	// tree content with the loaded document root. Returns true if parsing succeeds.
+	// Replacement operation: A successful load replaces the current document/tree
+	// state represented by this object; it does not append the loaded XML beneath the
+	// current element.
+	bool LoadXml(const char *xmlData);
+
+
+	// Parses the XML text in xmlData and replaces the current XML tree, like LoadXml.
+	// The autoTrim argument additionally controls whether leading and trailing
+	// whitespace is removed from each leaf element's text content while loading.
+	// Whitespace significance: Set autoTrim to false when leading or trailing text
+	// whitespace is significant to the application.
+	bool LoadXml2(const char *xmlData, bool autoTrim);
+
+
+	// Reads and parses an XML document from fileName, replacing the calling object's
+	// current XML tree with the loaded document root. Returns true on success.
+	// 
+	// The file's XML declaration and byte encoding are used as part of normal XML
+	// parsing.
+	// 
+	bool LoadXmlFile(const char *fileName);
+
+
+	// Reads and parses an XML document from fileName, replacing the current XML tree.
+	// The autoTrim argument controls whether leading and trailing whitespace is
+	// removed from each leaf element's text content.
+	// Whitespace significance: Set autoTrim to false when leading or trailing text
+	// whitespace must be preserved exactly.
+	bool LoadXmlFile2(const char *fileName, bool autoTrim);
+
+
+	// Creates and returns a new child at tagPath with the specified text content. A
+	// new child is created even when a child with the same tag already exists.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath. Intermediate elements in a multi-part
+	// path are created as needed. Use FindOrAddNewChild when duplicate final children
+	// should be avoided.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *NewChild(const char *tagPath, const char *content);
+
+
+	// Creates a new child at tagPath with the specified text content, but does not
+	// return a separate Xml object for the new element.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath. Intermediate elements in a multi-part
+	// path are created as needed.
+	void NewChild2(const char *tagPath, const char *content);
+
+
+	// Creates a new direct child with the specified tag and content, inserts it
+	// immediately after the child at zero-based index, and returns the new child
+	// element.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *NewChildAfter(int index, const char *tag, const char *content);
+
+
+	// Creates a new direct child with the specified tag and content, inserts it
+	// immediately before the child at zero-based index, and returns the new child
+	// element.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *NewChildBefore(int index, const char *tag, const char *content);
+
+
+	// Creates a new child at tagPath whose content is the decimal representation of
+	// value. No separate child object is returned.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath. Intermediate elements in a multi-part
+	// path are created as needed.
+	void NewChildInt2(const char *tagPath, int value);
+
+
+	// Moves the calling Xml object to the next element in a depth-first traversal of
+	// the tree and updates sbState with the traversal state.
+	// 
+	// Pass an empty StringBuilder when beginning a traversal, then reuse the same
+	// sbState for each subsequent call.
+	// 
+	// Why the name ends in 2: This method changes the caller's internal element
+	// reference. There is no separate NextInTraversal method that returns another Xml
+	// object.
+	bool NextInTraversal2(CkStringBuilder &sbState);
+
+
+	// Returns an Xml object referencing the current element's next sibling, or no
+	// object when there is no next sibling.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *NextSibling(void);
+
+
+	// Moves the calling Xml object's internal reference to its next sibling. Returns
+	// true if one exists; otherwise returns false.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	bool NextSibling2(void);
+
+
+	// Returns the number of direct children of the element selected by tagPath.
+	// Returns -1 if the path does not identify an existing element.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	int NumChildrenAt(const char *tagPath);
+
+
+	// Returns the number of direct children whose tag exactly equals tag. Descendants
+	// below those children are not included.
+	int NumChildrenHavingTag(const char *tag);
+
+
+	// Returns an Xml object referencing the current element's previous sibling, or no
+	// object when there is no previous sibling.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *PreviousSibling(void);
+
+
+	// Moves the calling Xml object's internal reference to its previous sibling.
+	// Returns true if one exists; otherwise returns false.
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	bool PreviousSibling2(void);
+
+
+	// Recursively traverses the subtree rooted at the calling element and removes
+	// every occurrence of the attribute named attrName.
+	// 
+	// Returns the number of attributes removed.
+	// 
+	int PruneAttribute(const char *attrName);
+
+
+	// Recursively traverses the subtree rooted at the calling element and removes
+	// every element whose tag equals tag. Each removed element's entire descendant
+	// subtree is removed with it.
+	// 
+	// Returns the number of matching tag occurrences removed.
+	// 
+	// Subtree pruning: When a matching parent is removed, its descendants disappear as
+	// part of that subtree; this method is intended for structural cleanup rather than
+	// text-only removal.
+	int PruneTag(const char *tag);
+
+
+	// Sets this element's content to an RFC 2047-style encoded-word using the Q
+	// encoding. inData contains bytes in the character encoding named by charset.
+	// 
+	// Bytes that cannot be represented directly as 7-bit text are emitted as =XX,
+	// where XX is the hexadecimal byte value. For example, using gb2312 may produce
+	// content similar to =?gb2312?Q?=C5=B5=BB=F9?=.
+	// 
+	// Use DecodeContent to recover the encoded bytes.
+	// 
+	// Purpose: Q-encoding here is MIME encoded-word syntax. It is not XML escaping and
+	// it is not encryption.
+	bool QEncodeContent(const char *charset, CkByteData &inData);
+
+
+	// Removes every attribute from the calling element. Returns true on success.
+	bool RemoveAllAttributes(void);
+
+
+	// Removes all direct child elements and their subtrees from the calling element.
+	// The calling element's own tag, attributes, and text content are retained.
+	void RemoveAllChildren(void);
+
+
+	// Removes the attribute named name from the calling element. Returns true when
+	// the operation succeeds.
+	bool RemoveAttribute(const char *name);
+
+
+	// Removes all child elements selected by tagPath beneath the calling element.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// All matches: This method removes matching children rather than returning a
+	// removed subtree. Use an ExtractChild... method when the removed element must be
+	// retained.
+	void RemoveChild(const char *tagPath);
+
+
+	// Removes the direct child at zero-based index, including that child's entire
+	// subtree.
+	void RemoveChildByIndex(int index);
+
+
+	// Removes all direct children whose text content exactly equals content, including
+	// each removed child's subtree.
+	void RemoveChildWithContent(const char *content);
+
+
+	// Detaches the calling element and its entire subtree from its parent. The
+	// detached element becomes the root of its own independent XML tree.
+	// Object remains usable: This method removes the subtree from its former document
+	// but keeps the calling Xml object referencing the detached subtree.
+	void RemoveFromTree(void);
+
+
+	// Removes XML stylesheet processing instructions whose attribute named attrName
+	// has the value attrValue.
+	// 
+	// Returns the number of matching stylesheet declarations removed, or -1 if an
+	// error occurs.
+	// 
+	int RemoveStyleSheet(const char *attrName, const char *attrValue);
+
+
+	// Decodes the binary content stored in this element and writes the resulting bytes
+	// to filename. Set unzipFlag and decryptFlag to reverse the transformations
+	// originally applied, and supply the corresponding password when decrypting.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool SaveBinaryContent(const char *filename, bool unzipFlag, bool decryptFlag, const char *password);
+
+
+	// Serializes the XML tree or subtree rooted at the current element and writes it
+	// to fileName.
+	// 
+	// Document/output properties such as Encoding, EmitBom, EmitXmlDecl, and
+	// EmitCompact affect the generated output as applicable.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool SaveXml(const char *fileName);
+
+
+	// Recursively normalizes the XML subtree rooted at the calling element according
+	// to the comma-separated keywords in directives.
+	// 
+	// Supported directives are:
+	// 
+	//     * AttrTrimEnds - remove leading and trailing whitespace from attribute
+	//     values.
+	//     * AttrTrimInside - replace tabs, CR, and LF with spaces and collapse
+	//     repeated spaces inside attribute values.
+	//     * ContentTrimEnds - remove leading and trailing whitespace from element
+	//     content.
+	//     * ContentTrimInside - normalize internal tabs/line breaks/spaces in element
+	//     content.
+	//     * LowercaseAttrs - convert attribute names to lowercase.
+	//     * LowercaseTags - convert tag names to lowercase.
+	//     * RemoveCtrl - remove US-ASCII control characters with values 0-31 except
+	//     TAB, CR, and LF.
+	// Destructive normalization: Scrubbing modifies the tree. Use these options only
+	// when the corresponding whitespace, letter case, or control characters are not
+	// semantically significant to the application.
+	void Scrub(const char *directives);
+
+
+	// Returns the first element whose text content matches contentPattern, regardless
+	// of tag name.
+	// 
+	// The search is breadth-first within the subtree rooted at the caller. The
+	// afterPtr argument identifies the element after which matching should begin,
+	// allowing repeated calls to continue an iteration. To begin at the first
+	// candidate, use _NULL_ where the language binding permits it; ActiveX callers
+	// should pass a reference to the caller's element instead.
+	// 
+	// Wildcard patterns are case-sensitive and may contain *, where each asterisk
+	// matches zero or more characters.
+	// 
+	// Iteration: Pass the element returned by one call as afterPtr on the next call to
+	// continue to the next match. Continue until no further element is returned.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *SearchAllForContent(CkXml *afterPtr, const char *contentPattern);
+
+
+	// Performs the same breadth-first content search as SearchAllForContent, but moves
+	// the calling Xml object's internal reference to the matching element instead of
+	// returning a separate element object.
+	// 
+	// The search is breadth-first within the subtree rooted at the caller. The
+	// afterPtr argument identifies the element after which matching should begin,
+	// allowing repeated calls to continue an iteration. To begin at the first
+	// candidate, use _NULL_ where the language binding permits it; ActiveX callers
+	// should pass a reference to the caller's element instead.
+	// 
+	// Wildcard patterns are case-sensitive and may contain *, where each asterisk
+	// matches zero or more characters.
+	// 
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	bool SearchAllForContent2(CkXml *afterPtr, const char *contentPattern);
+
+
+	// Returns the first element whose tag equals tag, that has an attribute named
+	// attr, and whose attribute value matches valuePattern.
+	// 
+	// The search is breadth-first within the subtree rooted at the caller. The
+	// afterPtr argument identifies the element after which matching should begin,
+	// allowing repeated calls to continue an iteration. To begin at the first
+	// candidate, use _NULL_ where the language binding permits it; ActiveX callers
+	// should pass a reference to the caller's element instead.
+	// 
+	// Wildcard patterns are case-sensitive and may contain *, where each asterisk
+	// matches zero or more characters.
+	// 
+	// Iteration: Pass the previous match as afterPtr to continue searching after that
+	// element.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *SearchForAttribute(CkXml *afterPtr, const char *tag, const char *attr, const char *valuePattern);
+
+
+	// Performs the same breadth-first tag/attribute search as SearchForAttribute, but
+	// moves the calling Xml object's internal reference to the matching element
+	// instead of returning a separate object.
+	// 
+	// The search is breadth-first within the subtree rooted at the caller. The
+	// afterPtr argument identifies the element after which matching should begin,
+	// allowing repeated calls to continue an iteration. To begin at the first
+	// candidate, use _NULL_ where the language binding permits it; ActiveX callers
+	// should pass a reference to the caller's element instead.
+	// 
+	// Wildcard patterns are case-sensitive and may contain *, where each asterisk
+	// matches zero or more characters.
+	// 
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	bool SearchForAttribute2(CkXml *afterPtr, const char *tag, const char *attr, const char *valuePattern);
+
+
+	// Returns the first element whose tag equals tag and whose text content matches
+	// contentPattern.
+	// 
+	// The search is breadth-first within the subtree rooted at the caller. The
+	// afterPtr argument identifies the element after which matching should begin,
+	// allowing repeated calls to continue an iteration. To begin at the first
+	// candidate, use _NULL_ where the language binding permits it; ActiveX callers
+	// should pass a reference to the caller's element instead.
+	// 
+	// Wildcard patterns are case-sensitive and may contain *, where each asterisk
+	// matches zero or more characters.
+	// 
+	// Iteration: Pass the previous match as afterPtr to continue searching after that
+	// element.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *SearchForContent(CkXml *afterPtr, const char *tag, const char *contentPattern);
+
+
+	// Performs the same breadth-first tag/content search as SearchForContent, but
+	// moves the calling Xml object's internal reference to the matching element.
+	// 
+	// The search is breadth-first within the subtree rooted at the caller. The
+	// afterPtr argument identifies the element after which matching should begin,
+	// allowing repeated calls to continue an iteration. To begin at the first
+	// candidate, use _NULL_ where the language binding permits it; ActiveX callers
+	// should pass a reference to the caller's element instead.
+	// 
+	// Wildcard patterns are case-sensitive and may contain *, where each asterisk
+	// matches zero or more characters.
+	// 
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	bool SearchForContent2(CkXml *afterPtr, const char *tag, const char *contentPattern);
+
+
+	// Returns the first element whose tag exactly equals tag.
+	// 
+	// The search is breadth-first within the subtree rooted at the caller. afterPtr
+	// identifies the element after which searching begins. To begin at the first
+	// candidate, use _NULL_ where the language binding permits it; ActiveX callers
+	// should pass a reference to the caller's element.
+	// 
+	// Iteration: Pass the previous match as afterPtr to find the next matching tag.
+	// Continue until no further element is returned.
+	// The caller is responsible for deleting the object returned by this method.
+	CkXml *SearchForTag(CkXml *afterPtr, const char *tag);
+
+
+	// Performs the same breadth-first tag search as SearchForTag, but moves the
+	// calling Xml object's internal reference to the matching element instead of
+	// returning a separate object.
+	// 
+	// Use afterPtr in the same way as with SearchForTag to begin or continue the
+	// search.
+	// 
+	// Element-reference behavior: Methods that return an Xml object return another
+	// object referencing an element in the same underlying tree. Methods whose names
+	// end in 2 instead move the caller's internal reference.
+	bool SearchForTag2(CkXml *afterPtr, const char *tag);
+
+
+	// Stores inData as binary content on this element, with optional ZIP compression
+	// and optional password-based AES encryption. The stored binary representation is
+	// emitted as Base64 text when the XML is serialized.
+	// 
+	// If zipFlag is true, the data is compressed before storage. If encryptFlag is
+	// true, the data is encrypted using Chilkat's 128-bit Rijndael/AES format and
+	// password.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	// Round trip: Use GetBinaryContent or SaveBinaryContent with matching
+	// unzip/decrypt options to recover the original bytes.
+	bool SetBinaryContent(CkByteData &inData, bool zipFlag, bool encryptFlag, const char *password);
+
+
+	// Stores the bytes in data as binary content on this element, with optional ZIP
+	// compression and optional password-based AES encryption. The stored binary
+	// representation is emitted as Base64 text when XML is serialized.
+	// 
+	// If zipFlag is true, the bytes are compressed first. If encryptFlag is true,
+	// the data is encrypted using Chilkat's 128-bit Rijndael/AES format and password.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	// Round trip: Use the corresponding binary-content retrieval methods with matching
+	// decompression/decryption options to recover the original bytes.
+	bool SetBinaryContentBd(CkBinData &data, bool zipFlag, bool encryptFlag, const char *password);
+
+
+	// Reads the bytes from filename and stores them as this element's binary content,
+	// with optional ZIP compression and optional password-based encryption. The
+	// resulting stored data is represented as Base64 when XML text is generated.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool SetBinaryContentFromFile(const char *filename, bool zipFlag, bool encryptFlag, const char *password);
+
+
+	// Sorts the calling element's direct children by the string value of attribute
+	// attrName. Set ascending to true for ascending order or false for descending
+	// order.
+	// 
+	// SortCaseInsensitive controls case sensitivity for string sorting.
+	// 
+	void SortByAttribute(const char *attrName, bool ascending);
+
+
+	// Sorts the calling element's direct children numerically by the value of
+	// attribute attrName, interpreting each sort value as an integer rather than
+	// comparing the text lexicographically.
+	// 
+	// Set ascending to true for ascending order or false for descending order.
+	// 
 	void SortByAttributeInt(const char *attrName, bool ascending);
-	// SORTBYATTRIBUTEINT_END
-	// UPDATEATTRIBUTEINT_BEGIN
-	bool UpdateAttributeInt(const char *attrName, int value);
-	// UPDATEATTRIBUTEINT_END
-	// UPDATECHILDCONTENTINT_BEGIN
-	void UpdateChildContentInt(const char *tag, int value);
-	// UPDATECHILDCONTENTINT_END
-	// ADDSTYLESHEET_BEGIN
-	void AddStyleSheet(const char *styleSheet);
-	// ADDSTYLESHEET_END
-	// SORTRECORDSBYCONTENTINT_BEGIN
-	void SortRecordsByContentInt(const char *sortTag, bool ascending);
-	// SORTRECORDSBYCONTENTINT_END
-	// TAGCONTENT_BEGIN
-	bool TagContent(const char *tag, CkString &outStr);
-	const char *tagContent(const char *tag);
-	// TAGCONTENT_END
-	// GETSELF_BEGIN
-	CkXml *GetSelf(void);
-	// GETSELF_END
-	// DOCTYPE_BEGIN
-	void get_DocType(CkString &str);
-	const char *docType(void);
-	void put_DocType(const char *newVal);
-	// DOCTYPE_END
-	// CHILKATPATH_BEGIN
-	bool ChilkatPath(const char *cmd, CkString &outStr);
-	const char *chilkatPath(const char *cmd);
-	// CHILKATPATH_END
-	// GETCHILDWITHATTR_BEGIN
-	CkXml *GetChildWithAttr(const char *tag, const char *attrName, const char *attrValue);
-	// GETCHILDWITHATTR_END
-	// COPYREF_BEGIN
-	void CopyRef(CkXml &node);
-	// COPYREF_END
 
-	// XML_INSERT_POINT
+
+	// Sorts the calling element's direct children by their text content. Set ascending
+	// to true for ascending order or false for descending order.
+	// 
+	// SortCaseInsensitive controls case sensitivity for the string comparison.
+	// 
+	void SortByContent(bool ascending);
+
+
+	// Sorts the calling element's direct children by tag name. Set ascending to true
+	// for ascending order or false for descending order.
+	// 
+	// SortCaseInsensitive controls case sensitivity for the tag-name comparison.
+	// 
+	void SortByTag(bool ascending);
+
+
+	// Treats each direct child as a record and sorts those records by the value of
+	// attribute attrName on the record's child identified by sortTag.
+	// 
+	// Set ascending to true for ascending order or false for descending order.
+	// String comparisons honor SortCaseInsensitive.
+	// 
+	void SortRecordsByAttribute(const char *sortTag, const char *attrName, bool ascending);
+
+
+	// Treats each direct child as a record and sorts those records by the text content
+	// of the record's child named sortTag.
+	// 
+	// Set ascending to true for ascending order or false for descending order.
+	// String comparisons honor SortCaseInsensitive.
+	// 
+	void SortRecordsByContent(const char *sortTag, bool ascending);
+
+
+	// Treats each direct child as a record and sorts those records numerically by the
+	// integer content of the record's child named sortTag.
+	// 
+	// Numeric comparison is used instead of lexicographic string comparison. Set
+	// ascending to true for ascending order or false for descending order.
+	// 
+	void SortRecordsByContentInt(const char *sortTag, bool ascending);
+
+
+	// Swaps the calling element's tag, text content, and attributes with those of
+	// node.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	// Children are not swapped: Use SwapTree when child subtrees should also be
+	// exchanged.
+	bool SwapNode(CkXml &node);
+
+
+	// Swaps the calling element's complete tree state with tree, including tag, text
+	// content, attributes, and children.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool SwapTree(CkXml &tree);
+
+
+	// Searches the subtree rooted at the calling element for the first element whose
+	// tag equals tagName and returns that element's text content.
+	// Recursive search: Unlike direct-child getters, this search is not limited to the
+	// caller's immediate children.
+	bool TagContent(const char *tagName, CkString &outStr);
+
+	// Searches the subtree rooted at the calling element for the first element whose
+	// tag equals tagName and returns that element's text content.
+	// Recursive search: Unlike direct-child getters, this search is not limited to the
+	// caller's immediate children.
+	const char *tagContent(const char *tagName);
+
+	// Returns true if the calling element's complete tag name, including any
+	// namespace prefix, exactly equals tag; otherwise returns false.
+	bool TagEquals(const char *tag);
+
+
+	// Returns the zero-based child index of the element selected by tagPath. Returns
+	// -1 when no matching element is found at that path.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	// Index meaning: The returned index is the element's position among its parent's
+	// direct children, which is the index accepted by methods such as GetChild,
+	// RemoveChildByIndex, and the insertion methods.
+	int TagIndex(const char *tagPath);
+
+
+	// Returns true if this element's namespace-prefix portion exactly equals ns;
+	// otherwise returns false.
+	// 
+	// For example, the namespace prefix of soapenv:Body is soapenv.
+	// 
+	// Prefix comparison: This compares the lexical prefix, not the namespace URI bound
+	// to that prefix.
+	bool TagNsEquals(const char *ns);
+
+
+	// Returns true if this element's unprefixed tag exactly equals unprefixedTag;
+	// otherwise returns false.
+	// 
+	// For example, the unprefixed tag of soapenv:Body is Body.
+	// 
+	bool TagUnpEquals(const char *unprefixedTag);
+
+
+	// Reverses ZipContent: decodes and decompresses the calling element's compressed
+	// content and replaces the stored Base64-compressed representation with the
+	// original content.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool UnzipContent(void);
+
+
+	// Reverses ZipTree: decompresses the stored representation and reconstructs the
+	// calling element's previously compressed subtree.
+	// 
+	// The element's tag and attributes, which are not replaced by ZipTree, remain
+	// associated with the restored tree.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool UnzipTree(void);
+
+
+	// Sets the text content of the element selected by tagPath to value.
+	// 
+	// If autoCreate is true, missing elements along the path are created as needed.
+	// If it is false, the update requires the target path to already exist.
+	// 
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	bool UpdateAt(const char *tagPath, bool autoCreate, const char *value);
+
+
+	// Sets attribute attrName to attrValue on the element selected by tagPath. The
+	// attribute is added when it does not already exist.
+	// 
+	// If autoCreate is true, missing elements along the path are created as needed.
+	// If it is false, the target path must already exist.
+	// 
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	bool UpdateAttrAt(const char *tagPath, bool autoCreate, const char *attrName, const char *attrValue);
+
+
+	// Sets attribute attrName to attrValue. If the attribute already exists its value
+	// is replaced; otherwise the attribute is added.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool UpdateAttribute(const char *attrName, const char *attrValue);
+
+
+	// Sets attribute attrName to the decimal representation of integer value. Use
+	// UpdateAttribute for string values.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool UpdateAttributeInt(const char *attrName, int value);
+
+
+	// Sets the text content of the child selected by tagPath to value. Missing
+	// elements along the path are automatically created as needed.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	void UpdateChildContent(const char *tagPath, const char *value);
+
+
+	// Sets the content of the child selected by tagPath to the decimal representation
+	// of integer value.
+	// Tag paths: A tag path is Chilkat's | -separated child-navigation syntax, for
+	// example tagA|tagB|tagC. It is not XPath.
+	void UpdateChildContentInt(const char *tagPath, int value);
+
+
+	// ZIP-compresses this element's text content and replaces the original content
+	// with Base64-encoded compressed data.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	// Reversible transformation: Call UnzipContent to restore the original content.
+	bool ZipContent(void);
+
+
+	// ZIP-compresses the calling element's content together with its entire child
+	// subtree and replaces that structure with Base64-encoded compressed data.
+	// 
+	// The calling element's tag and attributes are not changed. Call UnzipTree to
+	// reconstruct the compressed subtree.
+	// 
+	// Returns true on success and false on failure.
+	// 
+	bool ZipTree(void);
+
+
+
+
+
 
 	// END PUBLIC INTERFACE
 
-	void Copy(const CkXml *node);
-
-	CkXml *SearchForAttribute(const CkXml &after, const char *tag, const char *attr, const char *valuePattern){ return SearchForAttribute(&after,tag,attr,valuePattern); }
-	CkXml *SearchAllForContent(const CkXml &after, const char *contentPattern){ return SearchAllForContent(&after,contentPattern); }
-	CkXml *SearchForContent(const CkXml &after, const char *tag, const char *contentPattern){ return SearchForContent(&after,tag,contentPattern); }
-	CkXml *SearchForTag(const CkXml &after, const char *tag){ return SearchForTag(&after,tag); }
-
-	bool SearchForAttribute2(const CkXml &after, const char *tag, const char *attr, const char *valuePattern){ return SearchForAttribute2(&after,tag,attr,valuePattern); }
-	bool SearchAllForContent2(const CkXml &after, const char *contentPattern){ return SearchAllForContent2(&after,contentPattern); }
-	bool SearchForContent2(const CkXml &after, const char *tag, const char *contentPattern){ return SearchForContent2(&after,tag,contentPattern); }
-	bool SearchForTag2(const CkXml &after, const char *tag){ return SearchForTag2(&after,tag); }
 
 };
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (pop)
 #endif
-
-
-
+	
 #endif
-
-

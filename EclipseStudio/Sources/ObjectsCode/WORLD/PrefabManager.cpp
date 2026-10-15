@@ -325,7 +325,7 @@ void PrefabManager::ValidatePrefabs()
 					);
 
 					bool removeInstances = MessageBoxA(r3dRenderer->HLibWin, buf, "WARNING", MB_YESNO | MB_ICONWARNING) == IDYES;
-					IncorrectPrefabsMap::_Pairib rv = incorrectPrefabsMap.insert(IncorrectPrefabsMap::value_type(p->prefabName, removeInstances));
+					auto rv = incorrectPrefabsMap.insert(IncorrectPrefabsMap::value_type(p->prefabName, removeInstances));
 					itr = rv.first;
 				}
 			}

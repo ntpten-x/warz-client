@@ -50,12 +50,13 @@
 // stl
 #include <set>
 #include <vector>
+#include <algorithm>
 #include <queue>
 #include <list>
 #include <map>
 #include <limits>
 #include <string>
-#include <hash_map>
+// Legacy hash_map removed for modern MSVC
 #include <unordered_map>
 #include <unordered_set>
 
@@ -163,7 +164,8 @@ using namespace physx;
 
 #ifndef WO_SERVER 
 #ifndef FINAL_BUILD
-	#define ENABLE_WEB_BROWSER 1
+	// Berkelium binary SDK is missing from this tree; keep web browser off for local builds.
+	#define ENABLE_WEB_BROWSER 0
 #endif
 #endif
 

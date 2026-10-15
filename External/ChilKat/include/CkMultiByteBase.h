@@ -2,7 +2,7 @@
 #define _CkMultiByteBase_H
 #pragma once
 
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (push, 8)
 #endif
 
@@ -10,13 +10,17 @@
 
 class CkString;
 
-class CkMultiByteBase : public CkObject
+
+#define VALID_CK_OBJECT 0x81F0CA3B
+
+
+class CK_VISIBLE_PUBLIC CkMultiByteBase : public CkObject
 {
     private:
-	    
+
 	// Disallow assignment or copying this object.
-	CkMultiByteBase(const CkMultiByteBase &) { }
-	CkMultiByteBase &operator=(const CkMultiByteBase &) { return *this; }
+	CkMultiByteBase(const CkMultiByteBase &);
+	CkMultiByteBase &operator=(const CkMultiByteBase &);
 
     protected:
 	void *m_impl;	
@@ -29,7 +33,12 @@ class CkMultiByteBase : public CkObject
 
 	unsigned int nextIdx(void);
     
+	const char *rtnMbString(CkString *pStrObj);	
+
     public:
+	// Set to 0x81F0CA3B for a valid non-destructed Chilkat object.
+	// Cleared to 0 when the object is destructed.
+	unsigned int m_validCkObject;
 	    
 	CkMultiByteBase(void);
 	virtual ~CkMultiByteBase(void);
@@ -42,14 +51,19 @@ class CkMultiByteBase : public CkObject
 	bool get_Utf8(void) const;
 	void put_Utf8(bool b);
 
-    	bool get_VerboseLogging(void);
+	bool get_VerboseLogging(void);
 	void put_VerboseLogging(bool b);
 
-	bool SaveLastError(const char *path);
+	bool get_LastMethodSuccess(void);
+	void put_LastMethodSuccess(bool b);
 
 	void LastErrorXml(CkString &str);
 	void LastErrorHtml(CkString &str);
 	void LastErrorText(CkString &str);
+
+	void get_LastErrorXml(CkString &str) { LastErrorXml(str); }
+	void get_LastErrorHtml(CkString &str) { LastErrorHtml(str); }
+	void get_LastErrorText(CkString &str) { LastErrorText(str); }
 
 	const char *lastErrorText(void);
 	const char *lastErrorXml(void);
@@ -73,7 +87,7 @@ class CkMultiByteBase : public CkObject
 
 };
 
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (pop)
 #endif
 

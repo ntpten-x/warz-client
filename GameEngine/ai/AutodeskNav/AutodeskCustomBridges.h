@@ -5,7 +5,9 @@
 
 #pragma once
 
-#if ENABLE_AUTODESK_NAVIGATION
+#ifdef WARZ_LOCAL_NAV_STUB
+// Provided by AutodeskNavStub.h
+#elif ENABLE_AUTODESK_NAVIGATION
 
 #include "gwnavgeneration/input/generatorinputproducer.h"
 #include "gwnavruntime/basesystem/iperfmarkerinterface.h"
@@ -104,4 +106,4 @@ public:
 	virtual KyResult Terminate();
 };
 
-#endif
+#endif // ENABLE_AUTODESK_NAVIGATION / WARZ_LOCAL_NAV_STUB

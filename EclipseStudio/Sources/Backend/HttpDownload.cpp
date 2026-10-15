@@ -2,6 +2,7 @@
 #include "r3d.h"
 
 #include "HttpDownload.h"
+#include "ChilkatCompat.h"
 
 HttpDownload::HttpDownload()
 {
@@ -14,16 +15,14 @@ HttpDownload::~HttpDownload()
 
 void HttpDownload::InitHttp()
 {
-	bool success = http_.UnlockComponent("ARKTOSHttp_decCLPWFQXmU");
-	if(success != 1) 
+	if(!Chilkat_UnlockHttp(http_))
 	{
 		r3dOutToLog("unable to unlock http component", MB_OK);
 		return;
 	}
 
 	http_.put_EventCallbackObject(this);
-	http_.put_UseBgThread(false);
-	http_.put_KeepEventLog(false);
+	// put_UseBgThread / put_KeepEventLog removed in Chilkat 11.x
 	http_.put_FollowRedirects(true);
 
 	relocatedUrl_[0] = 0;
@@ -144,7 +143,7 @@ bool HttpDownload::Get(const char* full_url, CkByteData& data, DWORD start, DWOR
 		return false;
 	}
 
-	resp->get_Body(data);
+	Chilkat_GetBody(resp, data);
 	delete resp;
 
 	return true;

@@ -455,8 +455,8 @@ REG_VAR( g_trees,					true,			0 );		//	enable/disable trees
 REG_VAR( r_trees_noninst_render,	false,			0 );
 
 REG_VAR( r_trees_render_code2,		"",				0 ); // this is TEMP for GameBlocks guys crap. TODO: remove soon!
-REG_VAR( g_serverip,			"svwarz.kongsi.asia",	0 );
-REG_VAR( g_api_ip,				"apiwarz.kongsi.asia", 0);
+REG_VAR( g_serverip,			"127.0.0.1",	0 );
+REG_VAR( g_api_ip,				"localhost", 0);
 REG_VAR( g_locl_settings,			true,			0 );
 REG_VAR( g_leveldata_xml_ver,		0,				0 );
 REG_VAR( g_cursor_mode,				0,				VF_HIDDEN );

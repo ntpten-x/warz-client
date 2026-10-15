@@ -19,6 +19,7 @@
 #include "CkHttp.h"
 #include "CkHttpResponse.h"
 #include "CkByteData.h"
+#include "Backend/ChilkatCompat.h"
 #endif
 
 IMPLEMENT_CLASS(obj_ItemSpawnPoint, "obj_ItemSpawnPoint", "Object");
@@ -495,12 +496,11 @@ void obj_ItemSpawnPoint::AnalyzeLootBoxData(float analyzeWindowInHours)
 	// firstly update loot box content
 	{
 		CkHttp http;
-		int success = http.UnlockComponent("ARKTOSHttp_decCLPWFQXmU");
-		if (success != 1) 
+		if (!Chilkat_UnlockHttp(http))
 			r3dError("Internal error!!!");
 
 		CkHttpRequest req;
-		req.UsePost();
+		Chilkat_UsePost(req);
 		req.put_Path("/WarZ/api/php/api_GetLootBoxConfig.php");
 		req.AddParam("serverkey", "Fg5jaBgj3uy3ja");
 
@@ -513,7 +513,7 @@ void obj_ItemSpawnPoint::AnalyzeLootBoxData(float analyzeWindowInHours)
 
 		// we can't use getBosyStr() because it'll fuckup characters inside UTF-8 xml
 		CkByteData bodyData;
-		resp->get_Body(bodyData);
+		Chilkat_GetBody(resp, bodyData);
 		delete resp;
 
 		// note, not _inplace function, fmlFile should have it own buffer

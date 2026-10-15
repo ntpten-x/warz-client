@@ -1,13 +1,9 @@
-// CkService.h: interface for the CkService class.
-//
-//////////////////////////////////////////////////////////////////////
+// This header is NOT generated.
 
-#ifdef WIN32
+#if defined(WIN32) && !defined(WINCE) 
 
 #ifndef _CKSERVICE_H
 #define _CKSERVICE_H
-
-
 
 #include "CkString.h"
 class CkByteData;
@@ -20,7 +16,7 @@ class CkByteData;
 
 #include "CkMultiByteBase.h"
 
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (push, 8)
 #endif
  
@@ -106,13 +102,13 @@ class CkService  : public CkMultiByteBase
 
 
 };
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (pop)
 #endif
 
 
 
-#endif
+#endif  // _CKSERVICE_H
 
 
 #endif

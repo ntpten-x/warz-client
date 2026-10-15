@@ -52,6 +52,8 @@
 #pragma comment(lib, "PhysX3Vehicle.lib")
 #pragma comment(lib, "RepX3.lib")
 #pragma comment(lib, "RepXUpgrader3.lib")
+#pragma comment(lib, "PxTask.lib")
+#pragma comment(lib, "PhysX3CharacterKinematic_x86.lib")
 #else // RELEASE
 #ifndef WO_SERVER
 #pragma comment(lib, "PhysX3PROFILE_x86.lib")

@@ -753,7 +753,7 @@ bool AutodeskNavMesh::AdjustNavPointHeight(r3dPoint3D &inOut, float searchHeight
 
 //////////////////////////////////////////////////////////////////////////
 
-AutodeskNavAgent** AutodeskNavMesh::GetNavAgentsInAABB(const r3dPoint3D& boxCenter, const r3dPoint3D& boxHalfExtents, std::tr1::unordered_set<uint32_t>& PoiTypesSet, uint32_t& foundNumNavAgents, bool skipListCreation /*= false*/)
+AutodeskNavAgent** AutodeskNavMesh::GetNavAgentsInAABB(const r3dPoint3D& boxCenter, const r3dPoint3D& boxHalfExtents, std::unordered_set<uint32_t>& PoiTypesSet, uint32_t& foundNumNavAgents, bool skipListCreation /*= false*/)
 {
 	// Keep the extents rather small, to keep searching fast.
 	// NOTE: Added .1f to the upper limits to handle floating point

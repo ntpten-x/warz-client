@@ -2,25 +2,36 @@
 //
 //////////////////////////////////////////////////////////////////////
 
+// This header is NOT generated.
+// This header is NOT generated.
+// This header is NOT generated.
+// This header is NOT generated.
+
 #ifndef _CkDateTime_H
 #define _CkDateTime_H
 
+#include "chilkatDefs.h"
+
 #include <time.h>
 
-#include "int64.h"
 #include "SystemTime.h"
 #include "FileTime.h"
 
 #include "CkString.h"
 #include "CkMultiByteBase.h"
 
-#ifndef __sun__
+class CkDtObj;
+class CkTask;
+class CkStringBuilder;
+
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (push, 8)
 #endif
 
+
  
 // CLASS: CkDateTime
-class CkDateTime  : public CkMultiByteBase
+class CK_VISIBLE_PUBLIC CkDateTime  : public CkMultiByteBase
 {
     private:
 	// Don't allow assignment or copying these objects.
@@ -35,28 +46,25 @@ class CkDateTime  : public CkMultiByteBase
 	virtual ~CkDateTime();
 
 	static CkDateTime *createNew(void);
+	static CkDateTime *createNew2(int progLang);
 	void inject(void *impl);
 
 	// May be called when finished with the object to free/dispose of any
 	// internal resources held by the object. 
 	void dispose(void);
 
-	// BEGIN PUBLIC INTERFACE
-	// ADDDAYS_BEGIN
 	bool AddDays(int numDays);
-	// ADDDAYS_END
 
-	// DESERIALIZE_BEGIN
 	void DeSerialize(const char *serializedDateTime);
-	// DESERIALIZE_END
 
-	// SERIALIZE_BEGIN
 	bool Serialize(CkString &outStr);
 	const char *serialize(void);
-	// SERIALIZE_END
 
 
-	void SetFromCurrentSystemTime(void);
+	// Sets the date/time by querying an NTP server. (added in Chilkat v9.5.0.96)
+	bool SetFromNtpServer(const char *jsonNtpInfo);
+
+	bool SetFromCurrentSystemTime(void);
 
 	// bLocal indicates whether the date/time returned is local or UTC,
 	// or if the date/time passed in is local or UTC.
@@ -70,34 +78,55 @@ class CkDateTime  : public CkMultiByteBase
 	// Therefore, if a 32-bit signed integer is used, it turns negative in 2038.
 
 	// 32-bit Unix time.
+	int GetAsUnixTimeInt(bool bLocal);
 	time_t GetAsUnixTime(bool bLocal);
-	void SetFromUnixTime(bool bLocal, time_t t);
+	bool SetFromUnixTime(bool bLocal, time_t t);
+
+	// 32-bit NTP time (number of seconds since 00:00 (midnight) 1 January 1900 GMT)
+	bool SetFromNtpTime(int t);
+
+
+	// Return the difference in seconds between this date/time and dt.  (returns this-dt)
+	int DiffSeconds(CkDateTime &dt);
 
 	// 64-bit Unix time.
 	__int64 GetAsUnixTime64(bool bLocal);
-	void SetFromUnixTime64(bool bLocal, __int64 t);
+	bool SetFromUnixTime64(bool bLocal, __int64 t);
 
 	// Unix time (double)
 	double GetAsUnixTimeDbl(bool bLocal);
-	void SetFromUnixTimeDbl(bool bLocal, double t);
+	bool SetFromUnixTimeDbl(bool bLocal, double t);
 
 	// struct tm
-	void GetAsTmStruct(bool bLocal, struct tm &tmbuf);
-	void SetFromTmStruct(bool bLocal, struct tm &tmbuf);
+	// Removed in Chilkat v11.0.0
+	//void GetAsTmStruct(bool bLocal, struct tm &tmbuf);
+	//bool SetFromTmStruct(bool bLocal, struct tm &tmbuf);
 
 	// Windows SYSTEMTIME struct.
-	void GetAsSystemTime(bool bLocal, SYSTEMTIME &outSysTime);
-	void SetFromSystemTime(bool bLocal, SYSTEMTIME &sysTime);
+	// Removed in Chilkat v11.0.0
+	//bool GetAsSystemTime(bool bLocal, SYSTEMTIME &outSysTime);
+	//bool SetFromSystemTime(bool bLocal, SYSTEMTIME &sysTime);
+
+	// Same as GetAsSystemTime..
+	// Removed in Chilkat v11.0.0
+	//bool GetAsDateTime(bool bLocal, SYSTEMTIME &outSysTime);
 
 	// Windows FILETIME struct.
-	void GetAsFileTime(bool bLocal, FILETIME &fTime);
-	void SetFromFileTime(bool bLocal, FILETIME &fTime);
+	// Removed in Chilkat v11.0.0
+	//void GetAsFileTime(bool bLocal, FILETIME &fTime);
+	//bool SetFromFileTime(bool bLocal, FILETIME &fTime);
 
 	// The OLE automation date format is a floating point value, 
 	// counting days since midnight 30 December 1899. Hours and minutes are 
 	// represented as fractional days. 
 	double GetAsOleDate(bool bLocal);
-	void SetFromOleDate(bool bLocal, double dt);
+	bool SetFromOleDate(bool bLocal, double dt);
+
+	 bool AddSeconds(int numSeconds);
+	 bool GetAsUnixTimeStr(bool bLocal, CkString &outStr);
+	 const char *getAsUnixTimeStr(bool bLocal);
+	 bool GetAsIso8601(const char *formatStr, bool bLocal, CkString &outStr);
+	 const char *getAsIso8601(const char *formatStr, bool bLocal);
 
 
 //	The DOS date/time format is a bitmask:
@@ -120,24 +149,25 @@ class CkDateTime  : public CkMultiByteBase
 //	FILETIME via DosDateTimeToFileTime, then convert the FILETIME to 
 //	something readable. 
 
-#if defined(WIN32) || defined(__MINGW32__) || defined(__BORLANDC__) || defined(__BCPLUSPLUS__)
+	// Removed in Chilkat v11.0.0
+//#if !defined(CK_USE_UINT_T)
 	unsigned long GetAsDosDate(bool bLocal);
-	void SetFromDosDate(bool bLocal, unsigned long t);
+	bool SetFromDosDate(bool bLocal, unsigned long t);
 
-	void SetFromDosDate2(bool bLocal, unsigned short d, unsigned short t);
-	unsigned short GetDosDateHigh(bool bLocal);
-	unsigned short GetDosDateLow(bool bLocal);
-#endif
+	//bool SetFromDosDate2(bool bLocal, unsigned short d, unsigned short t);
+	//unsigned short GetDosDateHigh(bool bLocal);
+	//unsigned short GetDosDateLow(bool bLocal);
+//#endif
 
 	// Do not use #else because of C++ --> C code generation...
-#if !defined(WIN32) && !defined(__MINGW32__) && !defined(__BORLANDC__) && !defined(__BCPLUSPLUS__)
-	uint32_t GetAsDosDate(bool bLocal);
-	void SetFromDosDate(bool bLocal, uint32_t t);
+//#if defined(CK_USE_UINT_T)
+	//uint32_t GetAsDosDate(bool bLocal);
+	//bool SetFromDosDate(bool bLocal, uint32_t t);
 
-	void SetFromDosDate2(bool bLocal, uint16_t d, uint16_t t);
-	uint16_t GetDosDateHigh(bool bLocal);
-	uint16_t GetDosDateLow(bool bLocal);
-#endif
+	//bool SetFromDosDate2(bool bLocal, uint16_t d, uint16_t t);
+	//uint16_t GetDosDateHigh(bool bLocal);
+	//uint16_t GetDosDateLow(bool bLocal);
+//#endif
 
 	// .NET DateTime value.
 
@@ -156,7 +186,7 @@ class CkDateTime  : public CkMultiByteBase
 	// in the context of an explicit or default calendar.
 
 	__int64 GetAsDateTimeTicks(bool bLocal);
-	void SetFromDateTimeTicks(bool bLocal, __int64 n);
+	bool SetFromDateTimeTicks(bool bLocal, __int64 n);
 
 
 	// ---------------------------------------------------------
@@ -178,30 +208,55 @@ class CkDateTime  : public CkMultiByteBase
 	int get_IsDst(void);
 
 
+	// ----------------------
+	// Ulid members added in v9.5.0.94
+	// ----------------------
+	bool UlidIncrement(CkStringBuilder &sb);
 
+	bool UlidGenerate(bool bLocal, CkString &outStr);
+	const char *ulidGenerate(bool bLocal);
+
+	bool SetFromUlid(bool bLocal, const char *ulid);
+	bool UlidValidate(const char *ulid);
 
 	// ----------------------
 	// String formats.
 	// ----------------------
 
-
-
-	// GETASRFC822_BEGIN
 	bool GetAsRfc822(bool bLocal, CkString &outStr);
 	const char *getAsRfc822(bool bLocal);
-	// GETASRFC822_END
-	// SETFROMRFC822_BEGIN
+
+	bool GetAsTimestamp(bool bLocal, CkString &outStr);
+	const char *getAsTimestamp(bool bLocal);
+
 	bool SetFromRfc822(const char *rfc822Str);
-	// SETFROMRFC822_END
 
-	// DATETIME_INSERT_POINT
+	// Sets the date/time from an RFC 3339 date/time formatted string.
+	bool SetFromTimestamp(const char *rfc3339Str);
 
-	// END PUBLIC INTERFACE
+	// Loads the date/time from a completed asynchronous task.
+	bool LoadTaskResult(CkTask &task);
+
+	CkDtObj *GetDtObj(bool bLocal);
+	bool SetFromDtObj(CkDtObj &dtObj);
+
+	void ToDtObj(bool bLocal, CkDtObj &cDtObj);
+
+	// Loads the date/time with a string having the format as produced by the Serialize
+	// method, which is a string of SPACE separated integers containing (in this order)
+	// year, month, day, hour, minutes, seconds, and a UTC flag having the value of
+	// 1/0.
+	bool ExpiresWithin(int n, const char *units);
 
 
+	// Loads the date/time with a string having the format as produced by the Serialize
+	// method, which is a string of SPACE separated integers containing (in this order)
+	// year, month, day, hour, minutes, seconds, and a UTC flag having the value of
+	// 1/0.
+	bool OlderThan(int n, const char *units);
 
 };
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (pop)
 #endif
 

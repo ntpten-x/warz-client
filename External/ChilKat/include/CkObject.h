@@ -1,23 +1,16 @@
-// CkObject.h: interface for the CkObject class.
-//
-//////////////////////////////////////////////////////////////////////
+// This header is NOT generated.
 
-#if !defined(AFX_CKOBJECT_H__B4D6C6A9_5D53_4205_A809_AE3103E7DB5E__INCLUDED_)
-#define AFX_CKOBJECT_H__B4D6C6A9_5D53_4205_A809_AE3103E7DB5E__INCLUDED_
+#if !defined(_CKOBJECT_H_INCLUDED_)
+#define _CKOBJECT_H_INCLUDED_
 
+#include "chilkatDefs.h"
 
-#if defined(__BORLANDC__) || defined(__BCPLUSPLUS__)
-#pragma link "ws2_32.lib"
-#pragma link "crypt32.lib"
-#endif
-
-
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (push, 8)
 #endif
  
 
-class CkObject  
+class CK_VISIBLE_PUBLIC CkObject  
 {
 public:
 	CkObject();
@@ -34,9 +27,9 @@ public:
 
 };
 
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (pop)
 #endif
 
 
-#endif // !defined(AFX_CKOBJECT_H__B4D6C6A9_5D53_4205_A809_AE3103E7DB5E__INCLUDED_)
+#endif // !defined(_CKOBJECT_H_INCLUDED_)

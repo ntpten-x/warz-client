@@ -10,10 +10,10 @@
 
 #ifndef WO_SERVER
 #include "NVApi/nvapi.h"
+#define ATIMGPUD_DLL
 #include "ATICrossfireDetect/atimgpud.h"
 #define R3D_NVAPI "NVApi: "
 #pragma comment(lib, "../External/NVApi/x86/nvapi.lib")
-#pragma comment(lib, "../External/ATICrossfireDetect/atimgpud_s_x86.lib")
 #endif
 
 #include "../SF/Console/Config.h"

@@ -173,7 +173,7 @@ void PhysicsHUD::ProcessPick()
 	} 
 	else 
 	{
-		extern BOOL terra_FindIntersection(r3dPoint3D &vFrom, r3dPoint3D &vTo, r3dPoint3D &colpos, int iterations);
+		extern BOOL terra_FindIntersection(const r3dPoint3D &vFrom, const r3dPoint3D &vTo, r3dPoint3D &colpos, int iterations);
 		r3dPoint3D v3;
 		if(terra_FindIntersection(gCam, gCam + dir*2000, v3, 2000)) 
 		{

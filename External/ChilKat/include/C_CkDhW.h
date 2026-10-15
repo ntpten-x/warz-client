@@ -1,35 +1,37 @@
-#ifndef _C_CkDh_W_H
-#define _C_CkDh_W_H
+// This is a generated source file for Chilkat version 11.6.0
+#ifndef _C_CkDhWH
+#define _C_CkDhWH
+#include "chilkatDefs.h"
+
+#include "ck_inttypes.h"
 #include "Chilkat_C.h"
 
-HCkDhW CkDhW_Create(void);
-HCkDhW CkDhW_Create2(bool bForMono);
-void CkDhW_Dispose(HCkDhW handle);
-void CkDhW_getDebugLogFilePath(HCkDhW cHandle, HCkStringW retval);
-void CkDhW_putDebugLogFilePath(HCkDhW cHandle, const wchar_t *newVal);
-HCkDhProgressW CkDhW_getEventCallbackObject(HCkDhW cHandle);
-void CkDhW_putEventCallbackObject(HCkDhW cHandle, HCkDhProgressW newVal);
-int CkDhW_getG(HCkDhW cHandle);
-void CkDhW_getLastErrorHtml(HCkDhW cHandle, HCkStringW retval);
-void CkDhW_getLastErrorText(HCkDhW cHandle, HCkStringW retval);
-void CkDhW_getLastErrorXml(HCkDhW cHandle, HCkStringW retval);
-void CkDhW_getP(HCkDhW cHandle, HCkStringW retval);
-BOOL CkDhW_getVerboseLogging(HCkDhW cHandle);
-void CkDhW_putVerboseLogging(HCkDhW cHandle, BOOL newVal);
-void CkDhW_getVersion(HCkDhW cHandle, HCkStringW retval);
-BOOL CkDhW_CreateE(HCkDhW cHandle, int numBits, HCkStringW outStr);
-BOOL CkDhW_FindK(HCkDhW cHandle, const wchar_t *e, HCkStringW outStr);
-BOOL CkDhW_GenPG(HCkDhW cHandle, int numBits, int g);
-BOOL CkDhW_SaveLastError(HCkDhW cHandle, const wchar_t *path);
-BOOL CkDhW_SetPG(HCkDhW cHandle, const wchar_t *p, int g);
-BOOL CkDhW_UnlockComponent(HCkDhW cHandle, const wchar_t *unlockCode);
-void CkDhW_UseKnownPrime(HCkDhW cHandle, int index);
-const wchar_t *CkDhW__createE(HCkDhW cHandle, int numBits);
-const wchar_t *CkDhW__debugLogFilePath(HCkDhW cHandle);
-const wchar_t *CkDhW__findK(HCkDhW cHandle, const wchar_t *e);
-const wchar_t *CkDhW__lastErrorHtml(HCkDhW cHandle);
-const wchar_t *CkDhW__lastErrorText(HCkDhW cHandle);
-const wchar_t *CkDhW__lastErrorXml(HCkDhW cHandle);
-const wchar_t *CkDhW__p(HCkDhW cHandle);
-const wchar_t *CkDhW__version(HCkDhW cHandle);
+
+CK_C_VISIBLE_PUBLIC HCkDhW CkDhW_Create(void);
+CK_C_VISIBLE_PUBLIC void CkDhW_Dispose(HCkDhW handle);
+CK_C_VISIBLE_PUBLIC void CkDhW_getDebugLogFilePath(HCkDhW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC void  CkDhW_putDebugLogFilePath(HCkDhW cHandle, const wchar_t *newVal);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkDhW_debugLogFilePath(HCkDhW cHandle);
+CK_C_VISIBLE_PUBLIC int CkDhW_getG(HCkDhW cHandle);
+CK_C_VISIBLE_PUBLIC void CkDhW_getLastErrorHtml(HCkDhW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkDhW_lastErrorHtml(HCkDhW cHandle);
+CK_C_VISIBLE_PUBLIC void CkDhW_getLastErrorText(HCkDhW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkDhW_lastErrorText(HCkDhW cHandle);
+CK_C_VISIBLE_PUBLIC void CkDhW_getLastErrorXml(HCkDhW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkDhW_lastErrorXml(HCkDhW cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkDhW_getLastMethodSuccess(HCkDhW cHandle);
+CK_C_VISIBLE_PUBLIC void  CkDhW_putLastMethodSuccess(HCkDhW cHandle, BOOL newVal);
+CK_C_VISIBLE_PUBLIC void CkDhW_getP(HCkDhW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkDhW_p(HCkDhW cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkDhW_getVerboseLogging(HCkDhW cHandle);
+CK_C_VISIBLE_PUBLIC void  CkDhW_putVerboseLogging(HCkDhW cHandle, BOOL newVal);
+CK_C_VISIBLE_PUBLIC void CkDhW_getVersion(HCkDhW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkDhW_version(HCkDhW cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkDhW_CreateE(HCkDhW cHandle, int numBits, HCkString outStr);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkDhW_createE(HCkDhW cHandle, int numBits);
+CK_C_VISIBLE_PUBLIC BOOL CkDhW_FindK(HCkDhW cHandle, const wchar_t *E, HCkString outStr);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkDhW_findK(HCkDhW cHandle, const wchar_t *E);
+CK_C_VISIBLE_PUBLIC BOOL CkDhW_GenPG(HCkDhW cHandle, int numBits, int G);
+CK_C_VISIBLE_PUBLIC BOOL CkDhW_SetPG(HCkDhW cHandle, const wchar_t *p, int g);
+CK_C_VISIBLE_PUBLIC void CkDhW_UseKnownPrime(HCkDhW cHandle, int index);
 #endif

@@ -5,6 +5,10 @@
 
 #pragma once
 
+#ifdef WARZ_LOCAL_NAV_STUB
+#include "AutodeskNavStub.h"
+#else
+
 namespace AutodeskNavAgentEnums
 {
 	enum EAvoidanceResult
@@ -102,4 +106,5 @@ public:
 
 __forceinline KyResult AutodeskNavAgent::ComputeNewPathToDestination(const Kaim::Vec3f& destPos) { return ComputeNewPathToDestination(destPos, Kaim::NavGraphEdgePtr()); }
 
-#endif
+#endif // ENABLE_AUTODESK_NAVIGATION
+#endif // WARZ_LOCAL_NAV_STUB

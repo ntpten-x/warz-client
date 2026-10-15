@@ -33,7 +33,7 @@
 
 #include "rendering/Deffered/D3DMiscFunctions.h"
 
-#include "..\..\..\bin\Data\Shaders\DX9_P1\system\LibSM\shadow_config.h" // shader config file
+// TEMP BUILD TEST: #include "..\..\..\bin\Data\Shaders\DX9_P1\system\LibSM\shadow_config.h" // shader config file
 
 r3dScreenBuffer*	DynamicEnvMap0;
 r3dScreenBuffer*	DynamicEnvMap1;

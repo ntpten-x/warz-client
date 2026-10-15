@@ -8,7 +8,7 @@
 #include "GameObjects\gameobj.h"
 #include "GameObjects\objmanag.h"
 #include "tree.h"
-#include "..\..\bin\Data\Shaders\DX9_P1\system\LibSM\shadow_config.h" // shader config file
+// TEMP BUILD TEST: #include "..\..\bin\Data\Shaders\DX9_P1\system\LibSM\shadow_config.h" // shader config file
 #include "..\..\..\..\GameEngine\TrueNature2\Terrain3.h"
 #include "..\..\..\..\GameEngine\TrueNature2\Terrain2.h"
 #include "../../Editors/CollectionsManager.h"

@@ -1,63 +1,62 @@
+// This is a generated source file for Chilkat version 11.6.0
 #ifndef _C_CkXmp_H
 #define _C_CkXmp_H
+#include "chilkatDefs.h"
+#include "ck_inttypes.h"
 #include "Chilkat_C.h"
 
-HCkXmp CkXmp_Create(void);
-void CkXmp_Dispose(HCkXmp handle);
-void CkXmp_getDebugLogFilePath(HCkXmp cHandle, HCkString retval);
-void CkXmp_putDebugLogFilePath(HCkXmp cHandle, const char *newVal);
-void CkXmp_getLastErrorHtml(HCkXmp cHandle, HCkString retval);
-void CkXmp_getLastErrorText(HCkXmp cHandle, HCkString retval);
-void CkXmp_getLastErrorXml(HCkXmp cHandle, HCkString retval);
-int CkXmp_getNumEmbedded(HCkXmp cHandle);
-BOOL CkXmp_getStructInnerDescrip(HCkXmp cHandle);
-void CkXmp_putStructInnerDescrip(HCkXmp cHandle, BOOL newVal);
-BOOL CkXmp_getUtf8(HCkXmp cHandle);
-void CkXmp_putUtf8(HCkXmp cHandle, BOOL newVal);
-BOOL CkXmp_getVerboseLogging(HCkXmp cHandle);
-void CkXmp_putVerboseLogging(HCkXmp cHandle, BOOL newVal);
-void CkXmp_getVersion(HCkXmp cHandle, HCkString retval);
-BOOL CkXmp_AddArray(HCkXmp cHandle, HCkXml xml, const char *arrType, const char *propName, HCkStringArray values);
-void CkXmp_AddNsMapping(HCkXmp cHandle, const char *ns, const char *uri);
-BOOL CkXmp_AddSimpleDate(HCkXmp cHandle, HCkXml xml, const char *propName, SYSTEMTIME *sysTime);
-BOOL CkXmp_AddSimpleInt(HCkXmp cHandle, HCkXml xml, const char *propName, int propVal);
-BOOL CkXmp_AddSimpleStr(HCkXmp cHandle, HCkXml xml, const char *propName, const char *propVal);
-BOOL CkXmp_AddStructProp(HCkXmp cHandle, HCkXml xml, const char *structName, const char *propName, const char *propVal);
-BOOL CkXmp_Append(HCkXmp cHandle, HCkXml xml);
-BOOL CkXmp_DateToString(HCkXmp cHandle, SYSTEMTIME *sysTime, HCkString outStr);
-HCkStringArray CkXmp_GetArray(HCkXmp cHandle, HCkXml xml, const char *propName);
-HCkXml CkXmp_GetEmbedded(HCkXmp cHandle, int index);
-HCkXml CkXmp_GetProperty(HCkXmp cHandle, HCkXml xml, const char *propName);
-BOOL CkXmp_GetSimpleDate(HCkXmp cHandle, HCkXml xml, const char *propName, SYSTEMTIME *outSysTime);
-int CkXmp_GetSimpleInt(HCkXmp cHandle, HCkXml xml, const char *propName);
-BOOL CkXmp_GetSimpleStr(HCkXmp cHandle, HCkXml xml, const char *propName, HCkString outStr);
-HCkStringArray CkXmp_GetStructPropNames(HCkXmp cHandle, HCkXml xml, const char *structName);
-BOOL CkXmp_GetStructValue(HCkXmp cHandle, HCkXml xml, const char *structName, const char *propName, HCkString outStr);
-BOOL CkXmp_LoadAppFile(HCkXmp cHandle, const char *path);
-BOOL CkXmp_LoadFromBuffer(HCkXmp cHandle, HCkByteData byteData, const char *ext);
-HCkXml CkXmp_NewXmp(HCkXmp cHandle);
-void CkXmp_RemoveAllEmbedded(HCkXmp cHandle);
-BOOL CkXmp_RemoveArray(HCkXmp cHandle, HCkXml xml, const char *propName);
-#if defined(WIN32) && !defined(__MINGW32__)
-void CkXmp_RemoveEmbedded(HCkXmp cHandle, int index);
-#endif
-void CkXmp_RemoveNsMapping(HCkXmp cHandle, const char *ns);
-BOOL CkXmp_RemoveSimple(HCkXmp cHandle, HCkXml xml, const char *propName);
-BOOL CkXmp_RemoveStruct(HCkXmp cHandle, HCkXml xml, const char *structName);
-BOOL CkXmp_RemoveStructProp(HCkXmp cHandle, HCkXml xml, const char *structName, const char *propName);
-BOOL CkXmp_SaveAppFile(HCkXmp cHandle, const char *path);
-BOOL CkXmp_SaveLastError(HCkXmp cHandle, const char *path);
-BOOL CkXmp_SaveToBuffer(HCkXmp cHandle, HCkByteData outBytes);
-BOOL CkXmp_StringToDate(HCkXmp cHandle, const char *str, SYSTEMTIME *outSysTime);
-BOOL CkXmp_UnlockComponent(HCkXmp cHandle, const char *unlockCode);
-const char *CkXmp_dateToString(HCkXmp cHandle, SYSTEMTIME *sysTime);
-const char *CkXmp_debugLogFilePath(HCkXmp cHandle);
-const char *CkXmp_getSimpleStr(HCkXmp cHandle, HCkXml xml, const char *propName);
-const char *CkXmp_getStructValue(HCkXmp cHandle, HCkXml xml, const char *structName, const char *propName);
-const char *CkXmp_lastErrorHtml(HCkXmp cHandle);
-const char *CkXmp_lastErrorText(HCkXmp cHandle);
-const char *CkXmp_lastErrorXml(HCkXmp cHandle);
-const char *CkXmp_simpleStr(HCkXmp cHandle, HCkXml xml, const char *propName);
-const char *CkXmp_structValue(HCkXmp cHandle, HCkXml xml, const char *structName, const char *propName);
-const char *CkXmp_version(HCkXmp cHandle);
+
+CK_C_VISIBLE_PUBLIC HCkXmp CkXmp_Create(void);
+CK_C_VISIBLE_PUBLIC HCkXmp CkXmp_Create2(int progLang);
+CK_C_VISIBLE_PUBLIC void CkXmp_Dispose(HCkXmp handle);
+CK_C_VISIBLE_PUBLIC void CkXmp_getDebugLogFilePath(HCkXmp cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC void CkXmp_putDebugLogFilePath(HCkXmp cHandle, const char *newVal);
+CK_C_VISIBLE_PUBLIC const char *CkXmp_debugLogFilePath(HCkXmp cHandle);
+CK_C_VISIBLE_PUBLIC void CkXmp_getLastErrorHtml(HCkXmp cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const char *CkXmp_lastErrorHtml(HCkXmp cHandle);
+CK_C_VISIBLE_PUBLIC void CkXmp_getLastErrorText(HCkXmp cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const char *CkXmp_lastErrorText(HCkXmp cHandle);
+CK_C_VISIBLE_PUBLIC void CkXmp_getLastErrorXml(HCkXmp cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const char *CkXmp_lastErrorXml(HCkXmp cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_getLastMethodSuccess(HCkXmp cHandle);
+CK_C_VISIBLE_PUBLIC void CkXmp_putLastMethodSuccess(HCkXmp cHandle, BOOL newVal);
+CK_C_VISIBLE_PUBLIC int CkXmp_getNumEmbedded(HCkXmp cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_getStructInnerDescrip(HCkXmp cHandle);
+CK_C_VISIBLE_PUBLIC void CkXmp_putStructInnerDescrip(HCkXmp cHandle, BOOL newVal);
+CK_C_VISIBLE_PUBLIC void CkXmp_getUncommonOptions(HCkXmp cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC void CkXmp_putUncommonOptions(HCkXmp cHandle, const char *newVal);
+CK_C_VISIBLE_PUBLIC const char *CkXmp_uncommonOptions(HCkXmp cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_getUtf8(HCkXmp cHandle);
+CK_C_VISIBLE_PUBLIC void CkXmp_putUtf8(HCkXmp cHandle, BOOL newVal);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_getVerboseLogging(HCkXmp cHandle);
+CK_C_VISIBLE_PUBLIC void CkXmp_putVerboseLogging(HCkXmp cHandle, BOOL newVal);
+CK_C_VISIBLE_PUBLIC void CkXmp_getVersion(HCkXmp cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const char *CkXmp_version(HCkXmp cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_AddArray(HCkXmp cHandle, HCkXml xml, const char *arrType, const char *propName, HCkStringArray values);
+CK_C_VISIBLE_PUBLIC void CkXmp_AddNsMapping(HCkXmp cHandle, const char *ns, const char *uri);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_AddSimpleInt(HCkXmp cHandle, HCkXml iXml, const char *propName, int propVal);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_AddSimpleStr(HCkXmp cHandle, HCkXml iXml, const char *propName, const char *propVal);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_AddStructProp(HCkXmp cHandle, HCkXml iChilkatXml, const char *structName, const char *propName, const char *propValue);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_Append(HCkXmp cHandle, HCkXml iXml);
+CK_C_VISIBLE_PUBLIC HCkStringArray CkXmp_GetArray(HCkXmp cHandle, HCkXml iXml, const char *propName);
+CK_C_VISIBLE_PUBLIC HCkXml CkXmp_GetEmbedded(HCkXmp cHandle, int index);
+CK_C_VISIBLE_PUBLIC HCkXml CkXmp_GetProperty(HCkXmp cHandle, HCkXml iXml, const char *propName);
+CK_C_VISIBLE_PUBLIC int CkXmp_GetSimpleInt(HCkXmp cHandle, HCkXml iXml, const char *propName);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_GetSimpleStr(HCkXmp cHandle, HCkXml iXml, const char *propName, HCkString outStr);
+CK_C_VISIBLE_PUBLIC const char *CkXmp_getSimpleStr(HCkXmp cHandle, HCkXml iXml, const char *propName);
+CK_C_VISIBLE_PUBLIC HCkStringArray CkXmp_GetStructPropNames(HCkXmp cHandle, HCkXml iXml, const char *structName);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_GetStructValue(HCkXmp cHandle, HCkXml iXml, const char *structName, const char *propName, HCkString outStr);
+CK_C_VISIBLE_PUBLIC const char *CkXmp_getStructValue(HCkXmp cHandle, HCkXml iXml, const char *structName, const char *propName);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_LoadAppFile(HCkXmp cHandle, const char *filename);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_LoadFromBuffer(HCkXmp cHandle, HCkByteData fileData, const char *ext);
+CK_C_VISIBLE_PUBLIC HCkXml CkXmp_NewXmp(HCkXmp cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_RemoveAllEmbedded(HCkXmp cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_RemoveArray(HCkXmp cHandle, HCkXml iXml, const char *propName);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_RemoveEmbedded(HCkXmp cHandle, int index);
+CK_C_VISIBLE_PUBLIC void CkXmp_RemoveNsMapping(HCkXmp cHandle, const char *ns);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_RemoveSimple(HCkXmp cHandle, HCkXml iXml, const char *propName);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_RemoveStruct(HCkXmp cHandle, HCkXml iXml, const char *structName);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_RemoveStructProp(HCkXmp cHandle, HCkXml iXml, const char *structName, const char *propName);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_SaveAppFile(HCkXmp cHandle, const char *filename);
+CK_C_VISIBLE_PUBLIC BOOL CkXmp_SaveToBuffer(HCkXmp cHandle, HCkByteData outBytes);
 #endif

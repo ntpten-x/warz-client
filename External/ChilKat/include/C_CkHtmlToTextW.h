@@ -1,35 +1,42 @@
-#ifndef _C_CkHtmlToText_W_H
-#define _C_CkHtmlToText_W_H
+// This is a generated source file for Chilkat version 11.6.0
+#ifndef _C_CkHtmlToTextWH
+#define _C_CkHtmlToTextWH
+#include "chilkatDefs.h"
+
+#include "ck_inttypes.h"
 #include "Chilkat_C.h"
 
-HCkHtmlToTextW CkHtmlToTextW_Create(void);
-HCkHtmlToTextW CkHtmlToTextW_Create2(bool bForMono);
-void CkHtmlToTextW_Dispose(HCkHtmlToTextW handle);
-void CkHtmlToTextW_getDebugLogFilePath(HCkHtmlToTextW cHandle, HCkStringW retval);
-void CkHtmlToTextW_putDebugLogFilePath(HCkHtmlToTextW cHandle, const wchar_t *newVal);
-BOOL CkHtmlToTextW_getDecodeHtmlEntities(HCkHtmlToTextW cHandle);
-void CkHtmlToTextW_putDecodeHtmlEntities(HCkHtmlToTextW cHandle, BOOL newVal);
-void CkHtmlToTextW_getLastErrorHtml(HCkHtmlToTextW cHandle, HCkStringW retval);
-void CkHtmlToTextW_getLastErrorText(HCkHtmlToTextW cHandle, HCkStringW retval);
-void CkHtmlToTextW_getLastErrorXml(HCkHtmlToTextW cHandle, HCkStringW retval);
-int CkHtmlToTextW_getRightMargin(HCkHtmlToTextW cHandle);
-void CkHtmlToTextW_putRightMargin(HCkHtmlToTextW cHandle, int newVal);
-BOOL CkHtmlToTextW_getSuppressLinks(HCkHtmlToTextW cHandle);
-void CkHtmlToTextW_putSuppressLinks(HCkHtmlToTextW cHandle, BOOL newVal);
-BOOL CkHtmlToTextW_getVerboseLogging(HCkHtmlToTextW cHandle);
-void CkHtmlToTextW_putVerboseLogging(HCkHtmlToTextW cHandle, BOOL newVal);
-void CkHtmlToTextW_getVersion(HCkHtmlToTextW cHandle, HCkStringW retval);
-BOOL CkHtmlToTextW_IsUnlocked(HCkHtmlToTextW cHandle);
-BOOL CkHtmlToTextW_ReadFileToString(HCkHtmlToTextW cHandle, const wchar_t *path, const wchar_t *srcCharset, HCkStringW outStr);
-BOOL CkHtmlToTextW_SaveLastError(HCkHtmlToTextW cHandle, const wchar_t *path);
-BOOL CkHtmlToTextW_ToText(HCkHtmlToTextW cHandle, const wchar_t *html, HCkStringW outStr);
-BOOL CkHtmlToTextW_UnlockComponent(HCkHtmlToTextW cHandle, const wchar_t *code);
-BOOL CkHtmlToTextW_WriteStringToFile(HCkHtmlToTextW cHandle, const wchar_t *str, const wchar_t *path, const wchar_t *charset);
-const wchar_t *CkHtmlToTextW__debugLogFilePath(HCkHtmlToTextW cHandle);
-const wchar_t *CkHtmlToTextW__lastErrorHtml(HCkHtmlToTextW cHandle);
-const wchar_t *CkHtmlToTextW__lastErrorText(HCkHtmlToTextW cHandle);
-const wchar_t *CkHtmlToTextW__lastErrorXml(HCkHtmlToTextW cHandle);
-const wchar_t *CkHtmlToTextW__readFileToString(HCkHtmlToTextW cHandle, const wchar_t *path, const wchar_t *srcCharset);
-const wchar_t *CkHtmlToTextW__toText(HCkHtmlToTextW cHandle, const wchar_t *html);
-const wchar_t *CkHtmlToTextW__version(HCkHtmlToTextW cHandle);
+
+CK_C_VISIBLE_PUBLIC HCkHtmlToTextW CkHtmlToTextW_Create(void);
+CK_C_VISIBLE_PUBLIC void CkHtmlToTextW_Dispose(HCkHtmlToTextW handle);
+CK_C_VISIBLE_PUBLIC void CkHtmlToTextW_getDebugLogFilePath(HCkHtmlToTextW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC void  CkHtmlToTextW_putDebugLogFilePath(HCkHtmlToTextW cHandle, const wchar_t *newVal);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkHtmlToTextW_debugLogFilePath(HCkHtmlToTextW cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkHtmlToTextW_getDecodeHtmlEntities(HCkHtmlToTextW cHandle);
+CK_C_VISIBLE_PUBLIC void  CkHtmlToTextW_putDecodeHtmlEntities(HCkHtmlToTextW cHandle, BOOL newVal);
+CK_C_VISIBLE_PUBLIC void CkHtmlToTextW_getLastErrorHtml(HCkHtmlToTextW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkHtmlToTextW_lastErrorHtml(HCkHtmlToTextW cHandle);
+CK_C_VISIBLE_PUBLIC void CkHtmlToTextW_getLastErrorText(HCkHtmlToTextW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkHtmlToTextW_lastErrorText(HCkHtmlToTextW cHandle);
+CK_C_VISIBLE_PUBLIC void CkHtmlToTextW_getLastErrorXml(HCkHtmlToTextW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkHtmlToTextW_lastErrorXml(HCkHtmlToTextW cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkHtmlToTextW_getLastMethodSuccess(HCkHtmlToTextW cHandle);
+CK_C_VISIBLE_PUBLIC void  CkHtmlToTextW_putLastMethodSuccess(HCkHtmlToTextW cHandle, BOOL newVal);
+CK_C_VISIBLE_PUBLIC int CkHtmlToTextW_getRightMargin(HCkHtmlToTextW cHandle);
+CK_C_VISIBLE_PUBLIC void  CkHtmlToTextW_putRightMargin(HCkHtmlToTextW cHandle, int newVal);
+CK_C_VISIBLE_PUBLIC BOOL CkHtmlToTextW_getSuppressLinks(HCkHtmlToTextW cHandle);
+CK_C_VISIBLE_PUBLIC void  CkHtmlToTextW_putSuppressLinks(HCkHtmlToTextW cHandle, BOOL newVal);
+CK_C_VISIBLE_PUBLIC void CkHtmlToTextW_getUncommonOptions(HCkHtmlToTextW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC void  CkHtmlToTextW_putUncommonOptions(HCkHtmlToTextW cHandle, const wchar_t *newVal);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkHtmlToTextW_uncommonOptions(HCkHtmlToTextW cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkHtmlToTextW_getVerboseLogging(HCkHtmlToTextW cHandle);
+CK_C_VISIBLE_PUBLIC void  CkHtmlToTextW_putVerboseLogging(HCkHtmlToTextW cHandle, BOOL newVal);
+CK_C_VISIBLE_PUBLIC void CkHtmlToTextW_getVersion(HCkHtmlToTextW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkHtmlToTextW_version(HCkHtmlToTextW cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkHtmlToTextW_ReadFileToString(HCkHtmlToTextW cHandle, const wchar_t *filename, const wchar_t *srcCharset, HCkString outStr);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkHtmlToTextW_readFileToString(HCkHtmlToTextW cHandle, const wchar_t *filename, const wchar_t *srcCharset);
+CK_C_VISIBLE_PUBLIC BOOL CkHtmlToTextW_ToText(HCkHtmlToTextW cHandle, const wchar_t *html, HCkString outStr);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkHtmlToTextW_toText(HCkHtmlToTextW cHandle, const wchar_t *html);
+CK_C_VISIBLE_PUBLIC BOOL CkHtmlToTextW_ToTextSb(HCkHtmlToTextW cHandle, HCkStringBuilderW sb);
+CK_C_VISIBLE_PUBLIC BOOL CkHtmlToTextW_WriteStringToFile(HCkHtmlToTextW cHandle, const wchar_t *stringToWrite, const wchar_t *filename, const wchar_t *charset);
 #endif

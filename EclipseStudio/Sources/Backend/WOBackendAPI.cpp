@@ -5,9 +5,10 @@
 #include "GameCode/UserProfile.h"
 
 #include "WOBackendAPI.h"
+#include "ChilkatCompat.h"
 
-	const char*	gDomainBaseUrl= "/WarZ/api/";
-	int		gDomainPort   = 80; // PAX_BUILD - change to 80 and no SSL
+	const char*	gDomainBaseUrl= "/"; // local IIS Express rooted at Site/
+	int		gDomainPort   = 8080; // local IIS Express
 	bool		gDomainUseSSL = false;
 	
 CWOBackendReq::CWOBackendReq(const char* url)
@@ -41,9 +42,7 @@ void CWOBackendReq::Init(const char* url)
 	bodyStr_    = "";
 	bodyLen_    = 0;
 	
-	int success;
-	success = http.UnlockComponent("ARKTOSHttp_decCLPWFQXmU");
-	if (success != 1)
+	if (!Chilkat_UnlockHttp(http))
 	{
 		r3dError("failed to unlock CkHttp");
 		return;
@@ -62,7 +61,7 @@ void CWOBackendReq::Init(const char* url)
 	else 
 	  sprintf(fullUrl, "%s", url);
 
-	req.UsePost();
+	Chilkat_UsePost(req);
 	req.put_Path(fullUrl);
 	req.put_Utf8(true);
 	req.put_SendCharset(true);
@@ -121,14 +120,18 @@ int CWOBackendReq::ParseResult(CkHttpResponse* resp)
 	}
 	
 	// NOTE: we can't use getBodyStr() because it skip zeroes inside answer body
-	resp->get_Body(data_);
+	if(!Chilkat_GetBody(resp, data_))
+	{
+		r3dOutToLog("WO_API: get body failed\n");
+		return 8;
+	}
 	data_.appendChar(0);
 	
 	// if context is gzipped, uncompress it
 	if(data_.getSize() >= 2 && data_.getByte(0) == '$' && data_.getByte(1) == '1')
 	{
 		CkGzip gzip;
-		if(gzip.UnlockComponent("ARKTOSZIP_cRvE6e7mpSqD") == false)
+		if(!Chilkat_UnlockGzip(gzip))
 			r3dError("failed to unlock gzip");
 	
 		// remove header and decompress

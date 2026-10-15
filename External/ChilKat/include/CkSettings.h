@@ -1,29 +1,20 @@
-// CkSettings.h: interface for the CkSettings class.
-//
-//////////////////////////////////////////////////////////////////////
+// This C++ header is for Chilkat v11.6.0
+// This source file is not generated.
 
-#if !defined(AFX_CKSETTINGS_H__62E2D44A_4858_429D_994D_A6EAAD2FFEA1__INCLUDED_)
-#define AFX_CKSETTINGS_H__62E2D44A_4858_429D_994D_A6EAAD2FFEA1__INCLUDED_
+#if !defined(_CKSETTINGS_H_INCLUDED_)
+#define _CKSETTINGS_H_INCLUDED_
 
+#include "chilkatDefs.h"
 
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (push, 8)
 #endif
- 
 
-class CkSettings  
+class CK_VISIBLE_PUBLIC CkSettings  
 {
 public:
 	CkSettings();
 	virtual ~CkSettings();
-
-	// CLASS: CkSettings
-
-	// Each Chilkat object's Utf8 property will default to the value of 
-	// CkSettings::m_utf8.  The default is false (meaning ANSI).
-	static bool m_utf8;  
-
-	// BEGIN PUBLIC INTERFACE
 
 	// Call this once at the beginning of your program
 	// if your program is multithreaded.
@@ -31,23 +22,23 @@ public:
 
 	// Call this once at the end of your program.
 	// It is only necessary if you are testing for memory leaks.
+	// Once called, your program should not continue to use Chilkat classes
+	// because the build-once/stay resident data will have been deleted.
 	static void cleanupMemory(void);
 
-
 	// Get the sum of the sizes of all the process heaps.
-	static unsigned long getTotalSizeProcessHeaps(void);
+	// Only valid/implemented on Windows..
+	//static unsigned long getTotalSizeProcessHeaps(void);
+
+	// Only valid/implemented on Windows.  Returns true if all process heaps are valid,
+	// returns false if any process heaps are corrupted.
+	static bool validateHeap(void);
 
 
-	static int getAnsiCodePage(void);
-	static int getOemCodePage(void);
-	static void setAnsiCodePage(int cp);
-	static void setOemCodePage(int cp);
-
-	// END PUBLIC INTERFACE
 };
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (pop)
 #endif
 
 
-#endif // !defined(AFX_CKSETTINGS_H__62E2D44A_4858_429D_994D_A6EAAD2FFEA1__INCLUDED_)
+#endif // !defined(_CKSETTINGS_H_INCLUDED_)

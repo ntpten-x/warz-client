@@ -1,8 +1,9 @@
+// This header is NOT generated.
 
-#if !defined(WIN32) && !defined(WINCE)
-	
 #ifndef _SYSTEMTIME_H_INCLUDED_
-#define _SYSTEMTIME_H_INCLUDED_
+#define _SYSTEMTIME_H_INCLUDED_	
+
+#if !defined(_WINBASE_) && !defined(_MINWINBASE_) && !defined(_WINBASE_H)
 	
 typedef struct _SYSTEMTIME
     {

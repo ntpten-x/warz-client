@@ -5,67 +5,141 @@
 #ifndef _CKZIPPROGRESS_H
 #define _CKZIPPROGRESS_H
 
-#include "CkObject.h"
+#include "CkBaseProgress.h"
 
 /*
 
   To receive progress events (callbacks), create a C++ class that 
   inherits this one and provides one or more overriding implementations 
-  for the events you wish to receive.  Then pass your Zip progress object
-  to CkZip methods such as WriteZip, Extract, etc.
+  for the events you wish to receive.
 
   */
-#ifndef __sun__
+
+ 
+// When creating an application class that inherits the CkZipProgress base class, use the CK_ZIPPROGRESS_API 
+// definition to declare the overrides in the class header.  This has the effect that if for
+// some unforeseen and unlikely reason the Chilkat event callback API changes, or if new
+// callback methods are added in a future version, then you'll discover them at compile time
+// after updating to the new Chilkat version.  
+// For example:
+/*
+    class MyProgress : public CkZipProgress
+    {
+	public:
+	    CK_ZIPPROGRESS_API
+
+	...
+    };
+*/
+#define CK_ZIPPROGRESS_API \
+	void ToBeAdded(const char *filePath, __int64 fileSize, bool *skip);\
+	void DirToBeAdded(const char *filePath, bool *skip);\
+	void FileAdded(const char *filePath, __int64 fileSize, bool *abort);\
+	void ToBeZipped(const char *filePath, __int64 fileSize, bool *skip);\
+	void FileZipped(const char *filePath, __int64 fileSize, __int64 compressedSize, bool *abort);\
+	void ToBeUnzipped(const char *filePath, __int64 compressedSize,__int64 fileSize, bool isDirectory,bool *skip);\
+	void FileUnzipped(const char *filePath, __int64 compressedSize,__int64 fileSize, bool isDirectory,bool *abort);\
+	void SkippedForUnzip(const char *filePath, __int64 compressedSize,__int64 fileSize,bool isDirectory);\
+	void AddFilesBegin(void);\
+	void AddFilesEnd(void);\
+	void WriteZipBegin(void);\
+	void WriteZipEnd(void);\
+	void UnzipBegin(void);\
+	void UnzipEnd(void);
+
+
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (push, 8)
 #endif
- 
 
-class CkZipProgress : public CkObject 
+class CK_VISIBLE_PUBLIC CkZipProgress : public CkBaseProgress 
 {
     public:
-	CkZipProgress();
-	virtual ~CkZipProgress();
-
-	virtual void WriteZipPercentDone(long pctDone, bool *abort) { }
-	virtual void UnzipPercentDone(long pctDone, bool *abort) { }
-
-	// Called periodically to check to see if the Zip / Unzip should be aborted.
-	virtual void AbortCheck(bool *abort) { }
+	CkZipProgress() { }
+	virtual ~CkZipProgress() { }
 
 	virtual void ToBeAdded(const char *filePath, 
-	    unsigned long fileSize, 
-	    bool *excludeFlag) { }
+	    __int64 fileSize, 
+	    bool *skip) 
+	    { 
+	    bool b = ToBeAdded(filePath,fileSize);
+	    if (skip) *skip = b;
+	    }
+	virtual bool ToBeAdded(const char * /*filePath*/, 
+	    __int64 /*fileSize*/) { return false; }
 
 	virtual void DirToBeAdded(const char *filePath, 
-	    bool *excludeFlag) { }
+	    bool *skip) 
+	    { 
+	    bool b = DirToBeAdded(filePath);
+	    if (skip) *skip = b;
+	    }
+	virtual bool DirToBeAdded(const char * /*filePath*/) { return false; }
 
 	virtual void FileAdded(const char *filePath, 
-	    unsigned long fileSize, 
-	    bool *abort) { }
+	    __int64 fileSize, 
+	    bool *abort) 
+	    { 
+	    bool b = FileAdded(filePath,fileSize);
+	    if (abort) *abort = b;
+	    }
+	virtual bool FileAdded(const char * /*filePath*/, 
+	    __int64 /*fileSize*/) { return false; }
 
 	virtual void ToBeZipped(const char *filePath, 
-	    unsigned long fileSize, 
-	    bool *abort) { }
+	    __int64 fileSize, 
+	    bool *skip) 
+	    { 
+	    bool b = ToBeZipped(filePath,fileSize);
+	    if (skip) *skip = b;
+	    }
+	virtual bool ToBeZipped(const char * /*filePath*/, 
+	    __int64 /*fileSize*/) { return false; }
 
 	virtual void FileZipped(const char *filePath, 
-	    unsigned long fileSize, 
-	    unsigned long compressedSize, 
-	    bool *abort) { }
+	    __int64 fileSize, 
+	    __int64 compressedSize, 
+	    bool *abort) 
+	    { 
+	    bool b = FileZipped(filePath,fileSize,compressedSize);
+	    if (abort) *abort = b;
+	    }
+	virtual bool FileZipped(const char * /*filePath*/, 
+	    __int64 /*fileSize*/, 
+	    __int64 /*compressedSize*/) { return false; }
 
 	virtual void ToBeUnzipped(const char *filePath, 
-	    unsigned long compressedSize,
-	    unsigned long fileSize, 
-	    bool *abort) { }
+	    __int64 compressedSize,
+	    __int64 fileSize, 
+	    bool isDirectory,
+	    bool *skip) 
+	    { 
+	    bool b = ToBeUnzipped(filePath,compressedSize,fileSize,isDirectory);
+	    if (skip) *skip = b;
+	    }
+	virtual bool ToBeUnzipped(const char * /*filePath*/, 
+	    __int64 /*compressedSize*/,
+	    __int64 /*fileSize*/, 
+	    bool /*isDirectory*/) { return false; }
 
 	virtual void FileUnzipped(const char *filePath, 
-	    unsigned long compressedSize,
-	    unsigned long fileSize, 
-	    bool *abort) { }
+	    __int64 compressedSize,
+	    __int64 fileSize, 
+	    bool isDirectory,
+	    bool *abort) 
+	    { 
+	    bool b = FileUnzipped(filePath,compressedSize,fileSize,isDirectory);
+	    if (abort) *abort = b;
+	    }
+	virtual bool FileUnzipped(const char * /*filePath*/, 
+	    __int64 /*compressedSize*/,
+	    __int64 /*fileSize*/, 
+	    bool /*isDirectory*/) { return false; }
 
-	virtual void SkippedForUnzip(const char *filePath, 
-	    unsigned long compressedSize,
-	    unsigned long fileSize,
-	    bool isDirectory) { }
+	virtual void SkippedForUnzip(const char * /*filePath*/, 
+	    __int64 /*compressedSize*/,
+	    __int64 /*fileSize*/,
+	    bool /*isDirectory*/) { }
 
 	virtual void AddFilesBegin(void) { }
 	virtual void AddFilesEnd(void) { }
@@ -74,7 +148,7 @@ class CkZipProgress : public CkObject
 	virtual void UnzipBegin(void) { }
 	virtual void UnzipEnd(void) { }
 };
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (pop)
 #endif
 

@@ -2,514 +2,2282 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#ifndef _CKZIP_H
-#define _CKZIP_H
+// This header is generated for Chilkat 11.6.0
 
+#define _CkVersion 11.6.0
 
-
-
+#ifndef _CkZip_H
+#define _CkZip_H
+	
+#include "chilkatDefs.h"
 #include "CkString.h"
-class CkByteData;
-class CkZipProgress;
+#include "CkClassWithCallbacks.h"
+
+class CkBinData;
+class CkStringBuilder;
 class CkZipEntry;
+class CkByteData;
+class CkTask;
 class CkStringArray;
-#include "CkMultiByteBase.h"
+class CkZipProgress;
 
-/*
-    IMPORTANT: Objects returned by methods as non-const pointers must be deleted
-    by the calling application. 
 
-*/
-#ifndef __sun__
+
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (push, 8)
 #endif
- 
+
+
+#undef Copy
 
 // CLASS: CkZip
-class CkZip  : public CkMultiByteBase
+class CK_VISIBLE_PUBLIC CkZip  : public CkClassWithCallbacks
 {
-    public:
-	CkZip();
-	virtual ~CkZip();
+    private:
 
-	bool OpenFromMemory(const char *pByteData, unsigned long szByteData);
-	bool AddEmbeddedFromMemory(const char *exeFilename, 
-	    const char *resourceName, const char *pByteData, 
-	    unsigned long szByteData);
-	CkZipEntry *AppendData(const char *fileName, const unsigned char *pByteData, unsigned long szByteData);
+	// Don't allow assignment or copying these objects.
+	CkZip(const CkZip &);
+	CkZip &operator=(const CkZip &);
+
+    public:
+	CkZip(void);
+	virtual ~CkZip(void);
+
+	static CkZip *createNew(void);
+	static CkZip *createNew2(int progLang);
+	void CK_VISIBLE_PRIVATE inject(void *impl);
 
 	// May be called when finished with the object to free/dispose of any
 	// internal resources held by the object. 
 	void dispose(void);
 
+	
+		
+	CkZipProgress *get_EventCallbackObject(void) const;
+	void put_EventCallbackObject(CkZipProgress *progress);
+
 
 	// BEGIN PUBLIC INTERFACE
 
-	CkZipProgress *get_EventCallbackObject(void) const;
-	void put_EventCallbackObject(CkZipProgress *callback);
+	// ----------------------
+	// Properties
+	// ----------------------
+	// Stops the currently executing operation when set to true.
+	// 
+	//     * Used to cancel long-running operations such as compression or extraction.
+	//     * Can be triggered from another thread.
+	//     * Automatically resets to false after the operation stops.
+	bool get_AbortCurrent(void);
+	// Stops the currently executing operation when set to true.
+	// 
+	//     * Used to cancel long-running operations such as compression or extraction.
+	//     * Can be triggered from another thread.
+	//     * Automatically resets to false after the operation stops.
+	void put_AbortCurrent(bool newVal);
 
-	// If true, use standard WinZip password-protection.
-	bool get_PasswordProtect(void);
-	void put_PasswordProtect(bool newVal);
-
-	// If != 0, use encryption, which is different from WinZip password
-	// protection and requires that an application using Chilkat Zip must
-	// be used to decrypt the Zip.
-	// 0 = none, 1 = blowfish, 2 = twofish, 3 = rijndael (AES)
-	long get_Encryption(void);
-	void put_Encryption(long newVal);
-
-	// This property defaults to the OEM code page of the computer.
-	// Set it to read Zips created on computers in other languages,
-	// or to create a Zip targeted for another language.
-	long get_OemCodePage(void);
-	void put_OemCodePage(long newVal);
-
-	// Set to 128, 192, or 256-bit AES encryption.
-	long get_EncryptKeyLength(void);
-	void put_EncryptKeyLength(long newVal);
-
-	// The temporary directory to use when unzipping files. 
-	void get_TempDir(CkString &pVal);
-	void put_TempDir(const char *newVal);
-
-	// When files are appended, they are appended from this directory.
-	void get_AppendFromDir(CkString &pVal);
+	// Specifies a base directory when adding files to the ZIP.
+	// 
+	//     * This portion of the path is not included in stored ZIP entry paths.
+	//     * Useful for controlling relative paths inside the archive.
+	// 
+	// For example, to add all files under c:/abc/123/myAppDir, this property could be
+	// set to c:/abc/123, and myAppDir/* would be passed to AppendFiles.
+	// 
+	// The path stored in the ZIP would begin with myAppDir/.
+	// 
+	void get_AppendFromDir(CkString &str);
+	// Specifies a base directory when adding files to the ZIP.
+	// 
+	//     * This portion of the path is not included in stored ZIP entry paths.
+	//     * Useful for controlling relative paths inside the archive.
+	// 
+	// For example, to add all files under c:/abc/123/myAppDir, this property could be
+	// set to c:/abc/123, and myAppDir/* would be passed to AppendFiles.
+	// 
+	// The path stored in the ZIP would begin with myAppDir/.
+	// 
+	const char *appendFromDir(void);
+	// Specifies a base directory when adding files to the ZIP.
+	// 
+	//     * This portion of the path is not included in stored ZIP entry paths.
+	//     * Useful for controlling relative paths inside the archive.
+	// 
+	// For example, to add all files under c:/abc/123/myAppDir, this property could be
+	// set to c:/abc/123, and myAppDir/* would be passed to AppendFiles.
+	// 
+	// The path stored in the ZIP would begin with myAppDir/.
+	// 
 	void put_AppendFromDir(const char *newVal);
 
-	// A proxy to use with the OpenFromWeb method.
-	void get_Proxy(CkString &pVal);
-	void put_Proxy(const char *newVal);
-
-#if defined(WIN32) && !defined(WINCE)
-	// (For creating self-extracting EXEs) 
-	// This is the name of a file within the Zip that is designated to be automatically run after 
-	// a self-extracting EXE unzips. If set, then WriteExe will create a self-extracting EXE that 
-	// automatically runs this EXE after unzipping. The typical use for this 
-	// is to set AutoRun = "Setup.exe" for installation EXEs
-	void get_AutoRun(CkString &pVal);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Specifies the name of an executable inside a self-extracting EXE that runs
+	// automatically after extraction.
+	// 
+	void get_AutoRun(CkString &str);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Specifies the name of an executable inside a self-extracting EXE that runs
+	// automatically after extraction.
+	// 
+	const char *autoRun(void);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Specifies the name of an executable inside a self-extracting EXE that runs
+	// automatically after extraction.
+	// 
 	void put_AutoRun(const char *newVal);
 
-	void get_ExeXmlConfig(CkString &pVal);
-	void put_ExeXmlConfig(const char *newVal);
-	const char *exeXmlConfig(void);
-
-	// (For creating self-extracting EXEs) 
-	// If True then the EXE created by WriteExe will automatically unzip to a temp directory 
-	// when double-clicked. This option is only valid when an AutoRun filename is also set. 
-	// If set to False, the self-extracting EXE will prompt for an unzip directory.
-	bool get_AutoTemp(void);
-	void put_AutoTemp(bool newVal);
-
-	bool get_ExeNoInterface(void);
-	void put_ExeNoInterface(bool newVal);
-
-	void get_AutoRunParams(CkString &pVal);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Command-line arguments passed to the AutoRun executable.
+	// 
+	void get_AutoRunParams(CkString &str);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Command-line arguments passed to the AutoRun executable.
+	// 
+	const char *autoRunParams(void);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Command-line arguments passed to the AutoRun executable.
+	// 
 	void put_AutoRunParams(const char *newVal);
 
-	void get_ExeTitle(CkString &pVal);
-	void put_ExeTitle(const char *newVal);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// If true, the EXE being created will automatically select and create a
+	// temporary directory for unzipping.
+	// 
+	// This property is often used together with AutoRun to create a self-extracting
+	// EXE that automatically unzips to a temporary directory and runs a setup program,
+	// such as setup.exe, without user interaction.
+	// 
+	// Note: To create a self-extracting EXE with no user interaction, set the
+	// following properties:
+	// 
+	//     ExeSilentProgress = false
+	//     ExeNoInterface = true
+	//     ExeFinishNotifier = false
+	// 
+	// The default value is false.
+	// 
+	bool get_AutoTemp(void);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// If true, the EXE being created will automatically select and create a
+	// temporary directory for unzipping.
+	// 
+	// This property is often used together with AutoRun to create a self-extracting
+	// EXE that automatically unzips to a temporary directory and runs a setup program,
+	// such as setup.exe, without user interaction.
+	// 
+	// Note: To create a self-extracting EXE with no user interaction, set the
+	// following properties:
+	// 
+	//     ExeSilentProgress = false
+	//     ExeNoInterface = true
+	//     ExeFinishNotifier = false
+	// 
+	// The default value is false.
+	// 
+	void put_AutoTemp(bool newVal);
 
-	void get_ExeUnzipCaption(CkString &pVal);
-	void put_ExeUnzipCaption(const char *newVal);
+	// Controls whether filename matching is case-sensitive.
+	// 
+	//     * Affects methods such as EntryMatching and UnzipMatching.
+	//     * Default: false
+	bool get_CaseSensitive(void);
+	// Controls whether filename matching is case-sensitive.
+	// 
+	//     * Affects methods such as EntryMatching and UnzipMatching.
+	//     * Default: false
+	void put_CaseSensitive(bool newVal);
 
-	void get_ExeUnzipDir(CkString &pVal);
-	void put_ExeUnzipDir(const char *newVal);
-
-	void get_ExeDefaultDir(CkString &pVal);
-	void put_ExeDefaultDir(const char *newVal);
-	const char *exeDefaultDir(void);
-
-	void get_ExeIconFile(CkString &pVal);
-	void put_ExeIconFile(const char *newVal);
-
-	void put_ExeFinishNotifier(bool newVal);
-	bool get_ExeFinishNotifier(void);
-
-	void put_ExeSilentProgress(bool newVal);
-	bool get_ExeSilentProgress(void);
-
-#endif
-
+	// (Windows only)
+	// 
+	// If true, clears the Windows archive attribute after files are successfully
+	// added to the ZIP.
+	// 
+	// The archive attribute indicates that a file has changed since the last backup.
+	// 
+	// The default value is false.
+	// 
 	bool get_ClearArchiveAttribute(void);
+	// (Windows only)
+	// 
+	// If true, clears the Windows archive attribute after files are successfully
+	// added to the ZIP.
+	// 
+	// The archive attribute indicates that a file has changed since the last backup.
+	// 
+	// The default value is false.
+	// 
 	void put_ClearArchiveAttribute(bool newVal);
 
+	// If true, removes the read-only attribute from extracted files.
+	// 
+	// If false, the read-only attribute remains unchanged.
+	// 
+	// The default value is false.
+	// 
+	bool get_ClearReadOnlyAttr(void);
+	// If true, removes the read-only attribute from extracted files.
+	// 
+	// If false, the read-only attribute remains unchanged.
+	// 
+	// The default value is false.
+	// 
+	void put_ClearReadOnlyAttr(bool newVal);
 
-	// Number of entries within the Zip.
-	long get_NumEntries(void);
-
-	// The Zip filename.
-	void get_FileName(CkString &pVal);
-	void put_FileName(const char *newVal);
-
-	// The comment stored within the Zip file header.
-	void get_Comment(CkString &pVal);
+	// Sets or retrieves the global ZIP file comment.
+	// 
+	// The default value is the empty string.
+	// 
+	void get_Comment(CkString &str);
+	// Sets or retrieves the global ZIP file comment.
+	// 
+	// The default value is the empty string.
+	// 
+	const char *comment(void);
+	// Sets or retrieves the global ZIP file comment.
+	// 
+	// The default value is the empty string.
+	// 
 	void put_Comment(const char *newVal);
 
-	// Add this prefix to all filenames when zipping.
-	void get_PathPrefix(CkString &pVal);
-	void put_PathPrefix(const char *newVal);
+	// Password used to extract encrypted ZIP archives.
+	// 
+	//     * Required to unzip encrypted entries.
+	//     * Encrypted ZIP files may still be opened without a password, but their
+	//     contents cannot be extracted until the correct password is provided.
+	// 
+	// The default value is the empty string.
+	// 
+	void get_DecryptPassword(CkString &str);
+	// Password used to extract encrypted ZIP archives.
+	// 
+	//     * Required to unzip encrypted entries.
+	//     * Encrypted ZIP files may still be opened without a password, but their
+	//     contents cannot be extracted until the correct password is provided.
+	// 
+	// The default value is the empty string.
+	// 
+	const char *decryptPassword(void);
+	// Password used to extract encrypted ZIP archives.
+	// 
+	//     * Required to unzip encrypted entries.
+	//     * Encrypted ZIP files may still be opened without a password, but their
+	//     contents cannot be extracted until the correct password is provided.
+	// 
+	// The default value is the empty string.
+	// 
+	void put_DecryptPassword(const char *newVal);
 
-	// Discard filename paths when zipping.
+	// If true, removes all directory path information when adding files.
+	// 
+	// Only filenames are stored in the ZIP.
+	// 
+	// The default value is false.
+	// 
 	bool get_DiscardPaths(void);
+	// If true, removes all directory path information when adding files.
+	// 
+	// Only filenames are stored in the ZIP.
+	// 
+	// The default value is false.
+	// 
 	void put_DiscardPaths(bool newVal);
 
-	void get_DecryptPassword(CkString &pVal);
-	void put_DecryptPassword(const char *newVal);
-	void get_EncryptPassword(CkString &pVal);
-	void put_EncryptPassword(const char *newVal);
+	// Specifies encryption mode:
+	// 
+	//     * 0 → No encryption
+	//     * 4 → WinZip-compatible AES encryption
+	// 
+	// Important: Encryption and PasswordProtect are mutually exclusive.
+	// 
+	// If PasswordProtect = true, then Encryption should be 0.
+	// 
+	// The default value is 0.
+	// 
+	int get_Encryption(void);
+	// Specifies encryption mode:
+	// 
+	//     * 0 → No encryption
+	//     * 4 → WinZip-compatible AES encryption
+	// 
+	// Important: Encryption and PasswordProtect are mutually exclusive.
+	// 
+	// If PasswordProtect = true, then Encryption should be 0.
+	// 
+	// The default value is 0.
+	// 
+	void put_Encryption(int newVal);
+
+	// Specifies the AES encryption key length.
+	// 
+	//     * Valid values: 128, 192, or 256
+	// 
+	// The default value is 128.
+	// 
+	int get_EncryptKeyLength(void);
+	// Specifies the AES encryption key length.
+	// 
+	//     * Valid values: 128, 192, or 256
+	// 
+	// The default value is 128.
+	// 
+	void put_EncryptKeyLength(int newVal);
+
+	// Password used when creating encrypted ZIP archives.
+	// 
+	// The default value is the empty string.
+	// 
+	void get_EncryptPassword(CkString &str);
+	// Password used when creating encrypted ZIP archives.
+	// 
+	// The default value is the empty string.
+	// 
 	const char *encryptPassword(void);
-	const char *decryptPassword(void);
+	// Password used when creating encrypted ZIP archives.
+	// 
+	// The default value is the empty string.
+	// 
+	void put_EncryptPassword(const char *newVal);
 
-	// Returns the first entry in the Zip.
-	CkZipEntry *FirstEntry(void);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Default extraction directory shown in the self-extracting EXE user interface.
+	// 
+	// The default value is the empty string.
+	// 
+	void get_ExeDefaultDir(CkString &str);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Default extraction directory shown in the self-extracting EXE user interface.
+	// 
+	// The default value is the empty string.
+	// 
+	const char *exeDefaultDir(void);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Default extraction directory shown in the self-extracting EXE user interface.
+	// 
+	// The default value is the empty string.
+	// 
+	void put_ExeDefaultDir(const char *newVal);
 
-	// Call this any number of times before calling AppendFiles
-	// to exclude entire directory subtrees.
-	void ExcludeDir(const char *dirName);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// If true, displays a completion dialog after extraction finishes.
+	// 
+	// The default value is false.
+	// 
+	bool get_ExeFinishNotifier(void);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// If true, displays a completion dialog after extraction finishes.
+	// 
+	// The default value is false.
+	// 
+	void put_ExeFinishNotifier(bool newVal);
 
-	// True if this Zip is standard WinZip password-protected.
-	bool IsPasswordProtected(const char *zipPath);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Path to an.ico file used as the EXE icon.
+	// 
+	// This feature is only available when the application creating the EXE is 32-bit.
+	// 
+	// The default value is the empty string.
+	// 
+	void get_ExeIconFile(CkString &str);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Path to an.ico file used as the EXE icon.
+	// 
+	// This feature is only available when the application creating the EXE is 32-bit.
+	// 
+	// The default value is the empty string.
+	// 
+	const char *exeIconFile(void);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Path to an.ico file used as the EXE icon.
+	// 
+	// This feature is only available when the application creating the EXE is 32-bit.
+	// 
+	// The default value is the empty string.
+	// 
+	void put_ExeIconFile(const char *newVal);
 
-	// If an image of a Zip file is already in memory, it can be opened using this method.
-	bool OpenFromMemory(const unsigned char *pByteData, unsigned long szByteData);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// If true, runs the self-extracting EXE without displaying the main user
+	// interface.
+	// 
+	// The default value is false.
+	// 
+	bool get_ExeNoInterface(void);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// If true, runs the self-extracting EXE without displaying the main user
+	// interface.
+	// 
+	// The default value is false.
+	// 
+	void put_ExeNoInterface(bool newVal);
 
-	bool OpenFromByteData(const CkByteData &byteData);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Controls whether a progress dialog is shown during extraction.
+	// 
+	// If ExeNoInterface = false, the progress bar appears within the main dialog and
+	// this property has no effect.
+	// 
+	// The default value is false.
+	// 
+	bool get_ExeSilentProgress(void);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Controls whether a progress dialog is shown during extraction.
+	// 
+	// If ExeNoInterface = false, the progress bar appears within the main dialog and
+	// this property has no effect.
+	// 
+	// The default value is false.
+	// 
+	void put_ExeSilentProgress(bool newVal);
 
-#if defined(WIN32) && !defined(WINCE)
-	// Opens a ZIP embedded within an EXE. This only works for EXEs created by Chilkat Zip.
-	bool OpenEmbedded(const char *exePath, const char *resourceName);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Title displayed in the self-extracting EXE dialog.
+	// 
+	// The default value is the empty string.
+	// 
+	void get_ExeTitle(CkString &str);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Title displayed in the self-extracting EXE dialog.
+	// 
+	// The default value is the empty string.
+	// 
+	const char *exeTitle(void);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Title displayed in the self-extracting EXE dialog.
+	// 
+	// The default value is the empty string.
+	// 
+	void put_ExeTitle(const char *newVal);
 
-	// Opens the ZIP embedded in the caller's EXE. 
-	bool OpenMyEmbedded(const char *resourceName);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Caption text displayed in the self-extracting EXE dialog.
+	// 
+	// The default value is the empty string.
+	// 
+	void get_ExeUnzipCaption(CkString &str);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Caption text displayed in the self-extracting EXE dialog.
+	// 
+	// The default value is the empty string.
+	// 
+	const char *exeUnzipCaption(void);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Caption text displayed in the self-extracting EXE dialog.
+	// 
+	// The default value is the empty string.
+	// 
+	void put_ExeUnzipCaption(const char *newVal);
 
-	// Embeds a ZIP file into an EXE. The ZIP is stored as a named resource within the EXE. 
-	// You may store more than one ZIP within a single EXE, so long as the resource names are unique.
-	bool AddEmbedded(const char *exePath, const char *resourceName, const char *zipFilename);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Specifies a predefined extraction directory.
+	// 
+	//     * Supports environment variables such as%TEMP%.
+	//     * UNC paths are not supported.
+	// 
+	// The default value is the empty string.
+	// 
+	void get_ExeUnzipDir(CkString &str);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Specifies a predefined extraction directory.
+	// 
+	//     * Supports environment variables such as%TEMP%.
+	//     * UNC paths are not supported.
+	// 
+	// The default value is the empty string.
+	// 
+	const char *exeUnzipDir(void);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Specifies a predefined extraction directory.
+	// 
+	//     * Supports environment variables such as%TEMP%.
+	//     * UNC paths are not supported.
+	// 
+	// The default value is the empty string.
+	// 
+	void put_ExeUnzipDir(const char *newVal);
 
-	// Replaces a ZIP embedded in an EXE with another one.
-	bool ReplaceEmbedded(const char *exePath, const char *resourceName, const char *zipFilename);
-	
-	// Removes an embedded ZIP from an EXE.
-	bool RemoveEmbedded(const char *exePath, const char *resourceName);
-#endif
+	// If true, waits for the AutoRun executable to finish before exiting.
+	// 
+	// If false, the self-extracting EXE may exit before the AutoRun executable
+	// completes.
+	// 
+	// The default value is true.
+	// 
+	bool get_ExeWaitForSetup(void);
+	// If true, waits for the AutoRun executable to finish before exiting.
+	// 
+	// If false, the self-extracting EXE may exit before the AutoRun executable
+	// completes.
+	// 
+	// The default value is true.
+	// 
+	void put_ExeWaitForSetup(bool newVal);
 
-	// Sets the password used for either WinZip password-protection or AES encryption.
-	void SetPassword(const char *password);
+	// Allows for an XML config document to be used to specify all possible options for
+	// self-extracting EXEs. This property is a string containing the XML config
+	// document.
+	// 
+	// The XML should have this format:
+	// 
+	// <SfxConfig>
+	// <ErrPwdTitle>Title for incorrect password dialog</ErrPwdTitle>
+	// <ErrPwdCaption>Caption for incorrect password dialog</ErrPwdCaption>
+	// <FinOkBtn>Text on finish notifier button</FinOkBtn>
+	// <PwdOkBtn>Text on password challenge dialog's "OK" button.</PwdOkBtn>
+	// <PwdCancelBtn>Text on password challenge dialog's Cancel button.</PwdCancelBtn>
+	// <ErrInvalidPassword>Incorrect password error message.</ErrInvalidPassword>
+	// <MainUnzipBtn>Text on main dialog's unzip button. Note: The MainUnzipLabel must
+	// also be set for this to take effect.</MainUnzipBtn>
+	// <MainCloseBtn>Text on main dialog's quit/exit button. Note: The MainUnzipLabel
+	// must also be set for this to take effect.</MainCloseBtn>
+	// <MainBrowseBtn>Text on main dialog's browse-for-directory button. Note: The
+	// MainUnzipLabel must also be set for this to take effect.</MainBrowseBtn>
+	// <MainUnzipLabel>Caption displayed in main dialog.</MainUnzipLabel>
+	// <AutoTemp>0 or 1 (Maps to the AutoTemp property)</AutoTemp>
+	// <Cleanup>0 or 1 (If 1, extracted files are deleted after the SetupExe is
+	// run.)</Cleanup>
+	// <Debug>0 or 1 (If 1, the EXE will not extract any files.)</Debug>
+	// <Verbose>0 or 1 (If 1, verbose information is written to the log.)</Verbose>
+	// <ShowFin>0 or 1 (Maps to the ExeFinishNotifier property)</ShowFin>
+	// <ShowMain>0 or 1 (Maps to the ExeNoInterface property)</ShowMain>
+	// <ShowProgress>0 or 1 (Maps to the ExeSilentProgress property)</ShowProgress>
+	// <WaitForSetup>0 or 1 (Maps to the ExeWaitForSetup property)</WaitForSetup>
+	// <Encryption>0 or 1 (1 = Yes, 0 = No)</Encryption>
+	// <KeyLength>128|192|256</KeyLength>
+	// <SetupExe>EXE to run after extracting. (Maps to the AutoRun property)</SetupExe>
+	// <UnzipDir>Pre-defined unzip directory. (Maps to the ExeUnzipDir property. UNC
+	// paths, such as \\servername\path, are not supported.)</UnzipDir>
+	// <DefaultDir>Default unzip directory to appear in the main dialog. (Maps to the
+	// ExeDefaultDir property)</DefaultDir>
+	// <IconFile>Icon file to be used (Maps to the ExeIconFile property)</IconFile>
+	// <MainTitle>Maps to the ExeTitle property.</MainTitle>
+	// <MainCaption>Maps to the ExeUnzipCaption property.</MainCaption>
+	// <FinTitle>Title for the finish notifier dialog.</FinTitle>
+	// <FinCaption>Caption for the finish notifier dialog.</FinCaption>
+	// <ProgressTitle>Title for the progress dialog.</ProgressTitle>
+	// <ProgressCaption>Caption for the progress dialog.</ProgressCaption>
+	// <PwTitle>Title for the password challenge dialog.</PwTitle>
+	// <PwCaption>Caption for the password challenge dialog.</PwCaption>
+	// </SfxConfig>
+	// 
+	// A self-extracting EXE can be run from the command line with the -log
+	// {logFilePath} option to create a log with information for debugging.
+	// 
+	void get_ExeXmlConfig(CkString &str);
+	// Allows for an XML config document to be used to specify all possible options for
+	// self-extracting EXEs. This property is a string containing the XML config
+	// document.
+	// 
+	// The XML should have this format:
+	// 
+	// <SfxConfig>
+	// <ErrPwdTitle>Title for incorrect password dialog</ErrPwdTitle>
+	// <ErrPwdCaption>Caption for incorrect password dialog</ErrPwdCaption>
+	// <FinOkBtn>Text on finish notifier button</FinOkBtn>
+	// <PwdOkBtn>Text on password challenge dialog's "OK" button.</PwdOkBtn>
+	// <PwdCancelBtn>Text on password challenge dialog's Cancel button.</PwdCancelBtn>
+	// <ErrInvalidPassword>Incorrect password error message.</ErrInvalidPassword>
+	// <MainUnzipBtn>Text on main dialog's unzip button. Note: The MainUnzipLabel must
+	// also be set for this to take effect.</MainUnzipBtn>
+	// <MainCloseBtn>Text on main dialog's quit/exit button. Note: The MainUnzipLabel
+	// must also be set for this to take effect.</MainCloseBtn>
+	// <MainBrowseBtn>Text on main dialog's browse-for-directory button. Note: The
+	// MainUnzipLabel must also be set for this to take effect.</MainBrowseBtn>
+	// <MainUnzipLabel>Caption displayed in main dialog.</MainUnzipLabel>
+	// <AutoTemp>0 or 1 (Maps to the AutoTemp property)</AutoTemp>
+	// <Cleanup>0 or 1 (If 1, extracted files are deleted after the SetupExe is
+	// run.)</Cleanup>
+	// <Debug>0 or 1 (If 1, the EXE will not extract any files.)</Debug>
+	// <Verbose>0 or 1 (If 1, verbose information is written to the log.)</Verbose>
+	// <ShowFin>0 or 1 (Maps to the ExeFinishNotifier property)</ShowFin>
+	// <ShowMain>0 or 1 (Maps to the ExeNoInterface property)</ShowMain>
+	// <ShowProgress>0 or 1 (Maps to the ExeSilentProgress property)</ShowProgress>
+	// <WaitForSetup>0 or 1 (Maps to the ExeWaitForSetup property)</WaitForSetup>
+	// <Encryption>0 or 1 (1 = Yes, 0 = No)</Encryption>
+	// <KeyLength>128|192|256</KeyLength>
+	// <SetupExe>EXE to run after extracting. (Maps to the AutoRun property)</SetupExe>
+	// <UnzipDir>Pre-defined unzip directory. (Maps to the ExeUnzipDir property. UNC
+	// paths, such as \\servername\path, are not supported.)</UnzipDir>
+	// <DefaultDir>Default unzip directory to appear in the main dialog. (Maps to the
+	// ExeDefaultDir property)</DefaultDir>
+	// <IconFile>Icon file to be used (Maps to the ExeIconFile property)</IconFile>
+	// <MainTitle>Maps to the ExeTitle property.</MainTitle>
+	// <MainCaption>Maps to the ExeUnzipCaption property.</MainCaption>
+	// <FinTitle>Title for the finish notifier dialog.</FinTitle>
+	// <FinCaption>Caption for the finish notifier dialog.</FinCaption>
+	// <ProgressTitle>Title for the progress dialog.</ProgressTitle>
+	// <ProgressCaption>Caption for the progress dialog.</ProgressCaption>
+	// <PwTitle>Title for the password challenge dialog.</PwTitle>
+	// <PwCaption>Caption for the password challenge dialog.</PwCaption>
+	// </SfxConfig>
+	// 
+	// A self-extracting EXE can be run from the command line with the -log
+	// {logFilePath} option to create a log with information for debugging.
+	// 
+	const char *exeXmlConfig(void);
+	// Allows for an XML config document to be used to specify all possible options for
+	// self-extracting EXEs. This property is a string containing the XML config
+	// document.
+	// 
+	// The XML should have this format:
+	// 
+	// <SfxConfig>
+	// <ErrPwdTitle>Title for incorrect password dialog</ErrPwdTitle>
+	// <ErrPwdCaption>Caption for incorrect password dialog</ErrPwdCaption>
+	// <FinOkBtn>Text on finish notifier button</FinOkBtn>
+	// <PwdOkBtn>Text on password challenge dialog's "OK" button.</PwdOkBtn>
+	// <PwdCancelBtn>Text on password challenge dialog's Cancel button.</PwdCancelBtn>
+	// <ErrInvalidPassword>Incorrect password error message.</ErrInvalidPassword>
+	// <MainUnzipBtn>Text on main dialog's unzip button. Note: The MainUnzipLabel must
+	// also be set for this to take effect.</MainUnzipBtn>
+	// <MainCloseBtn>Text on main dialog's quit/exit button. Note: The MainUnzipLabel
+	// must also be set for this to take effect.</MainCloseBtn>
+	// <MainBrowseBtn>Text on main dialog's browse-for-directory button. Note: The
+	// MainUnzipLabel must also be set for this to take effect.</MainBrowseBtn>
+	// <MainUnzipLabel>Caption displayed in main dialog.</MainUnzipLabel>
+	// <AutoTemp>0 or 1 (Maps to the AutoTemp property)</AutoTemp>
+	// <Cleanup>0 or 1 (If 1, extracted files are deleted after the SetupExe is
+	// run.)</Cleanup>
+	// <Debug>0 or 1 (If 1, the EXE will not extract any files.)</Debug>
+	// <Verbose>0 or 1 (If 1, verbose information is written to the log.)</Verbose>
+	// <ShowFin>0 or 1 (Maps to the ExeFinishNotifier property)</ShowFin>
+	// <ShowMain>0 or 1 (Maps to the ExeNoInterface property)</ShowMain>
+	// <ShowProgress>0 or 1 (Maps to the ExeSilentProgress property)</ShowProgress>
+	// <WaitForSetup>0 or 1 (Maps to the ExeWaitForSetup property)</WaitForSetup>
+	// <Encryption>0 or 1 (1 = Yes, 0 = No)</Encryption>
+	// <KeyLength>128|192|256</KeyLength>
+	// <SetupExe>EXE to run after extracting. (Maps to the AutoRun property)</SetupExe>
+	// <UnzipDir>Pre-defined unzip directory. (Maps to the ExeUnzipDir property. UNC
+	// paths, such as \\servername\path, are not supported.)</UnzipDir>
+	// <DefaultDir>Default unzip directory to appear in the main dialog. (Maps to the
+	// ExeDefaultDir property)</DefaultDir>
+	// <IconFile>Icon file to be used (Maps to the ExeIconFile property)</IconFile>
+	// <MainTitle>Maps to the ExeTitle property.</MainTitle>
+	// <MainCaption>Maps to the ExeUnzipCaption property.</MainCaption>
+	// <FinTitle>Title for the finish notifier dialog.</FinTitle>
+	// <FinCaption>Caption for the finish notifier dialog.</FinCaption>
+	// <ProgressTitle>Title for the progress dialog.</ProgressTitle>
+	// <ProgressCaption>Caption for the progress dialog.</ProgressCaption>
+	// <PwTitle>Title for the password challenge dialog.</PwTitle>
+	// <PwCaption>Caption for the password challenge dialog.</PwCaption>
+	// </SfxConfig>
+	// 
+	// A self-extracting EXE can be run from the command line with the -log
+	// {logFilePath} option to create a log with information for debugging.
+	// 
+	void put_ExeXmlConfig(const char *newVal);
 
-	// You can specify wildcarded patterns of files to exclude from zipping, such as "*.log", 
-	// which would prevent any file ending in ".log" from being added to a zip. Any number of 
-	// exclusions can be added, and the exclusions pertain to any of the Append* methods. 
-	void SetExclusions(const CkStringArray &excludePatterns) { this->SetExclusions(&excludePatterns); }
+	// Number of files in the ZIP, excluding directory entries.
+	// 
+	int get_FileCount(void);
 
-	// Returns the exclusions previously set by SetExclusions.
-	CkStringArray *GetExclusions(void);
+	// Path of the ZIP file to be written or overwritten.
+	// 
+	// The default value is the empty string.
+	// 
+	void get_FileName(CkString &str);
+	// Path of the ZIP file to be written or overwritten.
+	// 
+	// The default value is the empty string.
+	// 
+	const char *fileName(void);
+	// Path of the ZIP file to be written or overwritten.
+	// 
+	// The default value is the empty string.
+	// 
+	void put_FileName(const char *newVal);
 
-	// Returns the first Zip entry whose filename matches the FilePattern. 
-	// The pattern can contain any number of "*" or "?" wildcards. "*" means 0 or more of any 
-	// character, "?" means any single character.
-	CkZipEntry *FirstMatchingEntry(const char *pattern);
+	// Indicates whether minor ZIP format problems were detected when opening the ZIP
+	// archive.
+	// 
+	bool get_HasZipFormatErrors(void);
 
-	// Returns an XML formatted listing of the contents of the Zip archive. An example is shown below: 
-	/*
-	<zip_contents>
-		  <dir name="Images">
-			  <file>flag.jpg</file> 
-		  </dir>
-		  <dir name="Sounds">
-			  <file>SOUND45.WAV</file> 
-			  <file>SOUND49.WAV</file> 
-			  <file>SOUND49D.WAV</file> 
-		  </dir>
-		  <dir name="Source">
-			  <dir name="Include">
-				  <file>OLEACC.H</file> 
-				  <file>OLEAUTO.H</file> 
-				  <file>OLECTL.H</file> 
-			  </dir>
-			  <file>ATL.CPP</file> 
-			  <file>REGOBJ.CPP</file> 
-			  <file>STDAFX.CPP</file> 
-		  </dir>
-		  <dir name="Spreadsheets">
-			  <file>SAMPLES.XLS</file> 
-		  </dir>
-		  <file>bullet.gif</file> 
-		  <file>chilkatLicense.txt</file> 
-		  <file>default.asp</file> 
-		  <file>file.gif</file> 
-		  <file>global.asa</file> 
-		  <file>guestbk.asp</file> 
-		  <file>il941.pdf</file> 
-		  <file>myfiles.asp</file> 
-		  <file>signbook.asp</file> 
-		  <file>sub.inc</file> 
-		  <file>theme.inc</file> 
-		  <file>themes.inc</file> 
-	</zip_contents>
-	*/
-	bool GetDirectoryAsXML(CkString &outXml);
+	// Interval, in milliseconds, between abort-check callbacks.
+	// 
+	// If set to 0, abort callbacks are disabled.
+	// 
+	// The default value is 0.
+	// 
+	int get_HeartbeatMs(void);
+	// Interval, in milliseconds, between abort-check callbacks.
+	// 
+	// If set to 0, abort callbacks are disabled.
+	// 
+	// The default value is 0.
+	// 
+	void put_HeartbeatMs(int newVal);
 
-	// Extract all the files that match the pattern. Subdirectories are automatically created as needed. 
-	// The pattern can contain any number of "*" or "?" wildcards. "*" means 0 or more of any character, "?" means any single character.
-	// eventCallbacks
-	bool ExtractMatching(const char *dirPath, const char *pattern);
+	// If true, files that cannot be read, written, or created due to filesystem
+	// permission errors are skipped.
+	// 
+	// If false, any access-denied error causes the ZIP operation to fail.
+	// 
+	// The default value is true.
+	// 
+	bool get_IgnoreAccessDenied(void);
+	// If true, files that cannot be read, written, or created due to filesystem
+	// permission errors are skipped.
+	// 
+	// If false, any access-denied error causes the ZIP operation to fail.
+	// 
+	// The default value is true.
+	// 
+	void put_IgnoreAccessDenied(bool newVal);
 
-	// Retrieves a Zip entry by ID. Chilkat Zip automatically assigns a unique ID to each Zip 
-	// entry in memory. The IDs are not persisted to disk. 
-	CkZipEntry *GetEntryByID(long entryID);
+	// Maximum last-modified timestamp for files processed during add or extract
+	// operations.
+	// 
+	// Files having modification timestamps later than this value are skipped.
+	// 
+	// Supports ISO 8601 date/time formats, including:
+	// 
+	//     * YYYY-MM-DD
+	//     Example: 2024-07-31
+	//     * YYYY-MM-DDTHH:MM:SS±HH:MM
+	//     Example: 2024-07-31T12:34:56+02:00
+	//     * YYYY-MM-DDTHH:MM:SSZ
+	//     Example: 2024-07-31T12:34:56Z
+	// 
+	// The default value is the empty string, meaning no maximum date restriction.
+	// 
+	void get_MaxDate(CkString &str);
+	// Maximum last-modified timestamp for files processed during add or extract
+	// operations.
+	// 
+	// Files having modification timestamps later than this value are skipped.
+	// 
+	// Supports ISO 8601 date/time formats, including:
+	// 
+	//     * YYYY-MM-DD
+	//     Example: 2024-07-31
+	//     * YYYY-MM-DDTHH:MM:SS±HH:MM
+	//     Example: 2024-07-31T12:34:56+02:00
+	//     * YYYY-MM-DDTHH:MM:SSZ
+	//     Example: 2024-07-31T12:34:56Z
+	// 
+	// The default value is the empty string, meaning no maximum date restriction.
+	// 
+	const char *maxDate(void);
+	// Maximum last-modified timestamp for files processed during add or extract
+	// operations.
+	// 
+	// Files having modification timestamps later than this value are skipped.
+	// 
+	// Supports ISO 8601 date/time formats, including:
+	// 
+	//     * YYYY-MM-DD
+	//     Example: 2024-07-31
+	//     * YYYY-MM-DDTHH:MM:SS±HH:MM
+	//     Example: 2024-07-31T12:34:56+02:00
+	//     * YYYY-MM-DDTHH:MM:SSZ
+	//     Example: 2024-07-31T12:34:56Z
+	// 
+	// The default value is the empty string, meaning no maximum date restriction.
+	// 
+	void put_MaxDate(const char *newVal);
 
-	// Writes the Zip to disk using the FileName property for the name of the file.
-	// A Zip file is never updated on disk until one of the Write methods is called.
-	// eventCallbacks
-	bool WriteZip(void);
+	// Prevents extraction of files larger than the specified uncompressed size.
+	// 
+	// A value of 0 means no size limit.
+	// 
+	// The default value is 0.
+	// 
+	unsigned long get_MaxUncompressSize(void);
+	// Prevents extraction of files larger than the specified uncompressed size.
+	// 
+	// A value of 0 means no size limit.
+	// 
+	// The default value is 0.
+	// 
+	void put_MaxUncompressSize(unsigned long newVal);
 
-	// Same as WriteZip, but the file is closed after writing.
-	// eventCallbacks
-	bool WriteZipAndClose(void);
+	// Minimum last-modified timestamp for files processed during add or extract
+	// operations.
+	// 
+	// Supports ISO 8601 date/time formats, including:
+	// 
+	//     * YYYY-MM-DD
+	//     Example: 2024-07-31
+	//     * YYYY-MM-DDTHH:MM:SS±HH:MM
+	//     Example: 2024-07-31T12:34:56+02:00
+	//     * YYYY-MM-DDTHH:MM:SSZ
+	//     Example: 2024-07-31T12:34:56Z
+	// 
+	// The default value is the empty string, meaning no minimum date restriction.
+	// 
+	void get_MinDate(CkString &str);
+	// Minimum last-modified timestamp for files processed during add or extract
+	// operations.
+	// 
+	// Supports ISO 8601 date/time formats, including:
+	// 
+	//     * YYYY-MM-DD
+	//     Example: 2024-07-31
+	//     * YYYY-MM-DDTHH:MM:SS±HH:MM
+	//     Example: 2024-07-31T12:34:56+02:00
+	//     * YYYY-MM-DDTHH:MM:SSZ
+	//     Example: 2024-07-31T12:34:56Z
+	// 
+	// The default value is the empty string, meaning no minimum date restriction.
+	// 
+	const char *minDate(void);
+	// Minimum last-modified timestamp for files processed during add or extract
+	// operations.
+	// 
+	// Supports ISO 8601 date/time formats, including:
+	// 
+	//     * YYYY-MM-DD
+	//     Example: 2024-07-31
+	//     * YYYY-MM-DDTHH:MM:SS±HH:MM
+	//     Example: 2024-07-31T12:34:56+02:00
+	//     * YYYY-MM-DDTHH:MM:SSZ
+	//     Example: 2024-07-31T12:34:56Z
+	// 
+	// The default value is the empty string, meaning no minimum date restriction.
+	// 
+	void put_MinDate(const char *newVal);
 
-	// Loads the contents of a Zip file into the Chilkat Zip object. 
-	// eventCallbacks
-	bool OpenZip(const char *zipPath);
+	// Total number of entries in the ZIP, including both files and directories.
+	// 
+	int get_NumEntries(void);
 
-	// Opens a Zip from a URL.
-	// eventCallbacks
-	bool OpenFromWeb(const char *url);
+	// Specifies the OEM code page used for ZIP filename encoding.
+	// 
+	// Defaults to the OEM code page of the current computer.
+	// 
+	int get_OemCodePage(void);
+	// Specifies the OEM code page used for ZIP filename encoding.
+	// 
+	// Defaults to the OEM code page of the current computer.
+	// 
+	void put_OemCodePage(int newVal);
 
-	// Clears the contents of the Zip object, and initializes the FileName property. 
-	// This does not create a file on disk, it simply initializes the Zip object to a new and empty state.
-	bool NewZip(const char *zipPath);
+	// If true, existing files are overwritten during extraction.
+	// 
+	// The default value is true.
+	// 
+	bool get_OverwriteExisting(void);
+	// If true, existing files are overwritten during extraction.
+	// 
+	// The default value is true.
+	// 
+	void put_OverwriteExisting(bool newVal);
 
-	// Returns a Zip entry by filename.
-	CkZipEntry *GetEntryByName(const char *entryName);
+	// Indicates whether the ZIP uses legacy Zip 2.0 password protection.
+	// 
+	// This property is set automatically when a ZIP archive is opened by any of the
+	// Open* methods, such as OpenZip, OpenFromMemory, OpenBd, and related methods.
+	// 
+	// Important: PasswordProtect and Encryption are mutually exclusive.
+	// 
+	// If PasswordProtect = true, then Encryption should be 0.
+	// 
+	// The default value is false.
+	// 
+	bool get_PasswordProtect(void);
+	// Indicates whether the ZIP uses legacy Zip 2.0 password protection.
+	// 
+	// This property is set automatically when a ZIP archive is opened by any of the
+	// Open* methods, such as OpenZip, OpenFromMemory, OpenBd, and related methods.
+	// 
+	// Important: PasswordProtect and Encryption are mutually exclusive.
+	// 
+	// If PasswordProtect = true, then Encryption should be 0.
+	// 
+	// The default value is false.
+	// 
+	void put_PasswordProtect(bool newVal);
 
-	// Returns the Nth Zip entry.  The first entry is at index 0.
-	CkZipEntry *GetEntryByIndex(long index);
+	// Gets or sets a path prefix that is prepended to ZIP entry paths for files
+	// appended from the local filesystem.
+	// 
+	// This is useful when you want all extracted files to appear under a specific
+	// subdirectory.
+	// 
+	// This property affects only the following methods:
+	// 
+	//     * AppendFiles
+	//     * AppendFilesEx
+	//     * AddFile
+	//     * AppendOneFileOrDir
+	// 
+	// The PathPrefix value is prepended to the stored ZIP path for each appended
+	// filesystem file.
+	// 
+	// For example, set PathPrefix to subdir/ so that files are stored in the ZIP with
+	// subdir/ prepended to their paths. When extracted, the files will be placed under
+	// the subdir directory.
+	// 
+	// This property does not affect entries added entirely from memory, such as
+	// entries added using:
+	// 
+	//     * AddString
+	//     * AddData
+	//     * AddBd
+	//     * AddSb
+	// 
+	// For in-memory entries, the ZIP entry path is determined solely by the
+	// filename/path argument passed to the method.
+	// 
+	// The default value is the empty string.
+	// 
+	void get_PathPrefix(CkString &str);
+	// Gets or sets a path prefix that is prepended to ZIP entry paths for files
+	// appended from the local filesystem.
+	// 
+	// This is useful when you want all extracted files to appear under a specific
+	// subdirectory.
+	// 
+	// This property affects only the following methods:
+	// 
+	//     * AppendFiles
+	//     * AppendFilesEx
+	//     * AddFile
+	//     * AppendOneFileOrDir
+	// 
+	// The PathPrefix value is prepended to the stored ZIP path for each appended
+	// filesystem file.
+	// 
+	// For example, set PathPrefix to subdir/ so that files are stored in the ZIP with
+	// subdir/ prepended to their paths. When extracted, the files will be placed under
+	// the subdir directory.
+	// 
+	// This property does not affect entries added entirely from memory, such as
+	// entries added using:
+	// 
+	//     * AddString
+	//     * AddData
+	//     * AddBd
+	//     * AddSb
+	// 
+	// For in-memory entries, the ZIP entry path is determined solely by the
+	// filename/path argument passed to the method.
+	// 
+	// The default value is the empty string.
+	// 
+	const char *pathPrefix(void);
+	// Gets or sets a path prefix that is prepended to ZIP entry paths for files
+	// appended from the local filesystem.
+	// 
+	// This is useful when you want all extracted files to appear under a specific
+	// subdirectory.
+	// 
+	// This property affects only the following methods:
+	// 
+	//     * AppendFiles
+	//     * AppendFilesEx
+	//     * AddFile
+	//     * AppendOneFileOrDir
+	// 
+	// The PathPrefix value is prepended to the stored ZIP path for each appended
+	// filesystem file.
+	// 
+	// For example, set PathPrefix to subdir/ so that files are stored in the ZIP with
+	// subdir/ prepended to their paths. When extracted, the files will be placed under
+	// the subdir directory.
+	// 
+	// This property does not affect entries added entirely from memory, such as
+	// entries added using:
+	// 
+	//     * AddString
+	//     * AddData
+	//     * AddBd
+	//     * AddSb
+	// 
+	// For in-memory entries, the ZIP entry path is determined solely by the
+	// filename/path argument passed to the method.
+	// 
+	// The default value is the empty string.
+	// 
+	void put_PathPrefix(const char *newVal);
 
-	// Unzip all the files into the specified directory. Subdirectories are automatically created 
-	// as needed.
-	// eventCallbacks
-	bool Extract(const char *dirPath);
+	// Controls the granularity of PercentDone event callbacks.
+	// 
+	// This property is only applicable in programming environments that support event
+	// callbacks.
+	// 
+	// The value specifies what should be considered 100% complete for progress
+	// reporting purposes.
+	// 
+	//     * A value of 100 provides whole-percent progress updates.
+	//     * A value of 1000 provides tenth-percent granularity.
+	//     * For example, with a scale of 1000, a PercentDone callback value of 453
+	//     represents 45.3% complete.
+	// 
+	// Increasing this value allows for more frequent and finer-grained progress
+	// callbacks during long-running operations.
+	// 
+	// The value is automatically clamped to the range:
+	// 
+	//     * Minimum: 10
+	//     * Maximum: 100000
+	// 
+	// The default value is 100.
+	// 
+	int get_PercentDoneScale(void);
+	// Controls the granularity of PercentDone event callbacks.
+	// 
+	// This property is only applicable in programming environments that support event
+	// callbacks.
+	// 
+	// The value specifies what should be considered 100% complete for progress
+	// reporting purposes.
+	// 
+	//     * A value of 100 provides whole-percent progress updates.
+	//     * A value of 1000 provides tenth-percent granularity.
+	//     * For example, with a scale of 1000, a PercentDone callback value of 453
+	//     represents 45.3% complete.
+	// 
+	// Increasing this value allows for more frequent and finer-grained progress
+	// callbacks during long-running operations.
+	// 
+	// The value is automatically clamped to the range:
+	// 
+	//     * Minimum: 10
+	//     * Maximum: 100000
+	// 
+	// The default value is 100.
+	// 
+	void put_PercentDoneScale(int newVal);
 
-	// Extracts only the files that have more recent last-modified-times than the files on disk. 
-	// This allows you to easily refresh only the files that have been updated.
-	// eventCallbacks
-	bool ExtractNewer(const char *dirPath);
+	// Specifies the character encoding used to convert the decrypt password into its
+	// binary byte representation for legacy password-protected ZIP archives that use
+	// Zip 2.0 encryption.
+	// 
+	// The default value is ansi.
+	// 
+	// Other possible values include:
+	// 
+	//     * cp850
+	//     * cp437
+	//     * Any supported Windows or OEM code page listed at the link below.
+	// 
+	// This property applies only to older Zip 2.0 password protection and is not used
+	// for AES-encrypted ZIP archives.
+	// 
+	void get_PwdProtCharset(CkString &str);
+	// Specifies the character encoding used to convert the decrypt password into its
+	// binary byte representation for legacy password-protected ZIP archives that use
+	// Zip 2.0 encryption.
+	// 
+	// The default value is ansi.
+	// 
+	// Other possible values include:
+	// 
+	//     * cp850
+	//     * cp437
+	//     * Any supported Windows or OEM code page listed at the link below.
+	// 
+	// This property applies only to older Zip 2.0 password protection and is not used
+	// for AES-encrypted ZIP archives.
+	// 
+	const char *pwdProtCharset(void);
+	// Specifies the character encoding used to convert the decrypt password into its
+	// binary byte representation for legacy password-protected ZIP archives that use
+	// Zip 2.0 encryption.
+	// 
+	// The default value is ansi.
+	// 
+	// Other possible values include:
+	// 
+	//     * cp850
+	//     * cp437
+	//     * Any supported Windows or OEM code page listed at the link below.
+	// 
+	// This property applies only to older Zip 2.0 password protection and is not used
+	// for AES-encrypted ZIP archives.
+	// 
+	void put_PwdProtCharset(const char *newVal);
 
-	// Append all the files from within another Zip file into this one.
-	bool AppendZip(const char *zipPath);
+	// Directory used for temporary files during ZIP operations.
+	// 
+	// When overwriting an existing ZIP file, a temporary file is used to avoid
+	// corrupting the original ZIP if an error occurs.
+	// 
+	// The default value depends on the runtime environment.
+	// 
+	void get_TempDir(CkString &str);
+	// Directory used for temporary files during ZIP operations.
+	// 
+	// When overwriting an existing ZIP file, a temporary file is used to avoid
+	// corrupting the original ZIP if an error occurs.
+	// 
+	// The default value depends on the runtime environment.
+	// 
+	const char *tempDir(void);
+	// Directory used for temporary files during ZIP operations.
+	// 
+	// When overwriting an existing ZIP file, a temporary file is used to avoid
+	// corrupting the original ZIP if an error occurs.
+	// 
+	// The default value depends on the runtime environment.
+	// 
+	void put_TempDir(const char *newVal);
 
-	// Appends a single file, or a directory (not the files in the directory, but the
-	// directory entry itself) to a Zip file.
-	// eventCallbacks
-	bool AppendOneFileOrDir(const char *path, bool saveExtraPath);
+	// Advanced options for uncommon scenarios.
+	// 
+	//     * ForceZip64 → Forces ZIP64 format even when not required.
+	// 
+	// The default value is the empty string.
+	// 
+	void get_UncommonOptions(CkString &str);
+	// Advanced options for uncommon scenarios.
+	// 
+	//     * ForceZip64 → Forces ZIP64 format even when not required.
+	// 
+	// The default value is the empty string.
+	// 
+	const char *uncommonOptions(void);
+	// Advanced options for uncommon scenarios.
+	// 
+	//     * ForceZip64 → Forces ZIP64 format even when not required.
+	// 
+	// The default value is the empty string.
+	// 
+	void put_UncommonOptions(const char *newVal);
 
-	// Appends one or more files to the Zip object. The FilePattern can use the "*" or "?" 
-	// wildcard characters. "*" means 0 or more of any character, and "?" means any single character. 
-	// Set Recurse equal to true to recursively add all subdirectories, or false to only add files 
-	// in the current directory.
-	// eventCallbacks
+	// If true, creates ZIPX archives using the most appropriate compression method
+	// for each file.
+	// 
+	// The default value is false.
+	// 
+	bool get_Zipx(void);
+	// If true, creates ZIPX archives using the most appropriate compression method
+	// for each file.
+	// 
+	// The default value is false.
+	// 
+	void put_Zipx(bool newVal);
+
+	// Default compression algorithm used when creating ZIPX archives.
+	// 
+	//     * Possible values include:
+	//         * deflate
+	//         * ppmd
+	//         * lzma
+	//         * bzip2
+	//         * deflate64
+	// 
+	// The default value is deflate.
+	// 
+	void get_ZipxDefaultAlg(CkString &str);
+	// Default compression algorithm used when creating ZIPX archives.
+	// 
+	//     * Possible values include:
+	//         * deflate
+	//         * ppmd
+	//         * lzma
+	//         * bzip2
+	//         * deflate64
+	// 
+	// The default value is deflate.
+	// 
+	const char *zipxDefaultAlg(void);
+	// Default compression algorithm used when creating ZIPX archives.
+	// 
+	//     * Possible values include:
+	//         * deflate
+	//         * ppmd
+	//         * lzma
+	//         * bzip2
+	//         * deflate64
+	// 
+	// The default value is deflate.
+	// 
+	void put_ZipxDefaultAlg(const char *newVal);
+
+
+
+	// ----------------------
+	// Methods
+	// ----------------------
+	// Adds the contents of a BinData object as a new entry in the ZIP archive.
+	// 
+	//     * pathInZip specifies the filename and optional directory path stored within
+	//     the ZIP.
+	//     * The bytes contained in bd become the contents of the ZIP entry.
+	//     * The entry is added to the in-memory ZIP object and is not written to disk
+	//     until WriteZip, WriteZipAndClose, WriteBd, or WriteToMemory is called.
+	bool AddBd(const char *pathInZip, CkBinData &bd);
+
+
+	// Adds an empty file or directory entry to the ZIP archive.
+	// 
+	//     * If isDir = true, an empty directory entry is created.
+	//     * If isDir = false, an empty file entry is created.
+	//     * pathInZip specifies the path stored in the ZIP archive.
+	// 
+	// This method is useful when directory structure entries must exist even if no
+	// files are present.
+	// 
+	bool AddEmpty(bool isDir, const char *pathInZip);
+
+
+	// Adds encoded binary data as a ZIP entry.
+	// 
+	//     * encoding specifies how data is encoded.
+	//     * Common encodings include base64 and hex.
+	//     * The decoded binary bytes become the contents of the ZIP entry.
+	// 
+	// This method is useful when binary data already exists in textual encoded form.
+	// 
+	bool AddEncoded(const char *pathInZip, const char *encoding, const char *data);
+
+
+	// Adds a file or directory from the local filesystem to the ZIP archive.
+	// 
+	//     * If localPath is an absolute path and saveExtraPath = true, the stored
+	//     ZIP path includes the relative directory structure.
+	//     * If saveExtraPath = false, only the filename is stored.
+	//     * If localPath is already relative, the relative path is stored as-is
+	//     regardless of saveExtraPath.
+	// 
+	// This method adds a reference to the file or directory in the local filesystem.
+	// The file data is not immediately read or compressed.
+	// 
+	// The actual file contents are consumed only when a Write* method is called, such
+	// as:
+	// 
+	//     * WriteZip
+	//     * WriteZipAndClose
+	//     * WriteBd
+	//     * WriteToMemory
+	// 
+	// This allows files and data entries to be accumulated in the in-memory ZIP object
+	// prior to writing the final ZIP archive.
+	// 
+	bool AddFile(const char *localPath, bool saveExtraPath);
+
+
+	// Adds a file extension to the internal "no-compression" list.
+	// 
+	// Files having these extensions are stored without compression because they are
+	// already compressed or because compression would provide little benefit.
+	// 
+	// For example:
+	// 
+	//     *.zip
+	//     *.jpg
+	//     *.png
+	//     *.gz
+	// 
+	// The extension may be specified with or without the leading dot.
+	// 
+	// Additional extensions remain active for the lifetime of the Zip object unless
+	// removed with RemoveNoCompressExtension.
+	// 
+	void AddNoCompressExtension(const char *fileExtension);
+
+
+	// Adds the contents of a StringBuilder object as a text entry in the ZIP archive.
+	// 
+	//     * The text is converted to bytes using the specified charset.
+	//     * pathInZip specifies the filename stored in the ZIP.
+	bool AddSb(const char *pathInZip, CkStringBuilder &sb, const char *charset);
+
+
+	// Adds a string as a text file entry in the ZIP archive.
+	// 
+	//     * The string is converted to bytes using the specified charset.
+	//     * pathInZip specifies the path stored within the ZIP archive.
+	// 
+	// This method is useful for dynamically generating text files directly in memory.
+	// 
+	bool AddString(const char *pathInZip, const char *content, const char *charset);
+
+
+	// This method is deprecated. Applications should instead call AddBd.
+	// 
+	// Appends the contents of byteData as a new entry to this zip object. The zip entry
+	// object containing the data is returned.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkZipEntry *AppendBd(const char *pathInZip, CkBinData &byteData);
+
+
+	// This method is deprecated. Applications should instead call AddData.
+	// 
+	// Appends in-memory data as a new entry to a Zip object. The ZipEntry object
+	// containing the data is returned.
+	// 
+	// Note: This method only updates the zip object. To update (rewrite) a zip file,
+	// either the WriteZip or WriteZipAndClose method would need to be called.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkZipEntry *AppendData(const char *fileName, CkByteData &inData);
+
+
+	// This method is deprecated. Applications should instead call AddEncoded.
+	// 
+	// Appends in-memory data as a new entry to a Zip object. The filename is the filename
+	// of the entry as it will appear within the zip. The encoding is the encoding of the
+	// data, such as base64, hex, etc. The full list of encodings is listed at the web
+	// page linked below.
+	// 
+	// Returns the zip entry object.
+	// 
+	// Note: This method only updates the zip object. To update (rewrite) a zip file,
+	// either the WriteZip or WriteZipAndClose method would need to be called.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkZipEntry *AppendDataEncoded(const char *filename, const char *encoding, const char *data);
+
+
+	// Adds one or more files matching a wildcard pattern.
+	// 
+	//     * The wildcard character * matches zero or more characters.
+	//     * If recurse = true, subdirectories are processed recursively.
+	//     * If recurse = false, only the current directory is searched.
+	// 
+	// For example:
+	// 
+	//     AppendFiles("c:/temp/*.txt", false)
+	// 
+	// This method only updates the in-memory ZIP object. The ZIP file itself is not
+	// written until a Write* method is called.
+	// 
 	bool AppendFiles(const char *filePattern, bool recurse);
 
-	// Same as AppendFiles, but extra parameters are to control whether or not the full pathname 
-	// is included with the Zip entry, or whether files with the Archive, Hidden, or 
-	// System attributes are included. true = yes, false = no.
-	// eventCallbacks
-	bool AppendFilesEx(const char *filePattern, bool recurse, 
-	    bool saveExtraPath, bool archiveOnly, bool includeHidden, 
-	    bool includeSystem);
+	// Adds one or more files matching a wildcard pattern.
+	// 
+	//     * The wildcard character * matches zero or more characters.
+	//     * If recurse = true, subdirectories are processed recursively.
+	//     * If recurse = false, only the current directory is searched.
+	// 
+	// For example:
+	// 
+	//     AppendFiles("c:/temp/*.txt", false)
+	// 
+	// This method only updates the in-memory ZIP object. The ZIP file itself is not
+	// written until a Write* method is called.
+	// 
+	CkTask *AppendFilesAsync(const char *filePattern, bool recurse);
 
-	// Same as calling AppendFiles multiple times - once for each file pattern in the CkStringArray.
-	//bool AppendMultiple(const CkStringArray &fileSpecs, bool recurse)
-	    //{return this->AppendMultiple(&fileSpecs,recurse);}
 
-	// Creates a new Zip entry and initializes it with uncompressed memory data. 
-	// The CkZipEntry's FileName property is initialized to fileName. 
-	CkZipEntry *AppendData(const char *pathInZip, const CkByteData &data);
-#if !defined(CHILKAT_MONO)
-	CkZipEntry *AppendData2(const char *pathInZip, const unsigned char *pByteData, unsigned long szByteData);
-#endif
-	CkZipEntry *AppendString(const char *pathInZip, const char *str);
-	CkZipEntry *AppendString2(const char *pathInZip, const char *str, const char *charset);
+	// Advanced version of AppendFiles with additional filtering and path options.
+	// 
+	//     * saveExtraPath controls whether the extra leading path information from the
+	//     filePattern is preserved in the ZIP.
+	//     * archiveOnly applies only on Windows and limits processing to files having
+	//     the archive attribute set.
+	//     * includeHidden controls whether hidden files are included.
+	//     * includeSystem controls whether files with the System attribute are
+	//     included.
+	// 
+	// This method adds references to files in the in-memory ZIP object. No ZIP file is
+	// written until a Write* method is called.
+	// 
+	bool AppendFilesEx(const char *filePattern, bool recurse, bool saveExtraPath, bool archiveOnly, bool includeHidden, bool includeSystem);
 
-	// Appends a new and empty entry to the Zip object.
-	CkZipEntry *AppendNew(const char *pathInZip);
-	CkZipEntry *AppendNewDir(const char *pathInZip);
+	// Advanced version of AppendFiles with additional filtering and path options.
+	// 
+	//     * saveExtraPath controls whether the extra leading path information from the
+	//     filePattern is preserved in the ZIP.
+	//     * archiveOnly applies only on Windows and limits processing to files having
+	//     the archive attribute set.
+	//     * includeHidden controls whether hidden files are included.
+	//     * includeSystem controls whether files with the System attribute are
+	//     included.
+	// 
+	// This method adds references to files in the in-memory ZIP object. No ZIP file is
+	// written until a Write* method is called.
+	// 
+	CkTask *AppendFilesExAsync(const char *filePattern, bool recurse, bool saveExtraPath, bool archiveOnly, bool includeHidden, bool includeSystem);
 
-	// Inserts a new and empty entry to the Zip object.
-	CkZipEntry *InsertNew(const char *pathInZip, long beforeIndex);
 
-	// Creates a new Zip entry and initializes it with already-compressed data. 
-	// The CkZipEntry's FileName property is initialized to fileName.
-	CkZipEntry *AppendCompressed(const char *pathInZip, const CkByteData &data);
+	// This method is deprecated. Applications should instead call AddEmpty.
+	// 
+	// Appends a new and empty entry to the Zip object and returns the ZipEntry object.
+	// Data can be appended to the entry by calling ZipEntry.AppendData.
+	// 
+	// Important: To append an already-existing file, call the AppendOneFileOrDir
+	// method. The AppendNew method inserts a new and empty file entry within the Zip
+	// object. The purpose of AppendNew is to either create an empty file within the
+	// Zip, or to create a new file entry which can then be filled with data by calling
+	// the entry's AppendData method.
+	// 
+	// Note: This method only updates the zip object. To update (rewrite) a zip file,
+	// either the WriteZip or WriteZipAndClose method would need to be called.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkZipEntry *AppendNew(const char *fileName);
 
-	// Removes an entry from the Zip object. The procedure for removing a file from an existing Zip 
-	// is to (1) open the Zip, (2) remove the entry by calling this method, 
-	// and (3) writing the Zip.
-	//bool DeleteEntry(const CkZipEntry &entry) { return this->DeleteEntry(&entry); }
 
-	// Creates a new Zip entry and initializes it with already-compressed data that is base-64 encoded. 
-	// The CkZipEntry's FileName property is initialized to fileName. 
-	CkZipEntry *AppendBase64(const char *pathInZip, const char *data);
+	// This method is deprecated. Applications should instead call AddEmpty.
+	// 
+	// Adds an entry to the zip so that when it unzips, a new directory (with no files)
+	// is created. The directory does not need to exist on the local filesystem when
+	// calling this method. The dirName is simply a string that is used as the directory
+	// path for the entry added to the zip. The zip entry object is returned.
+	// 
+	// Note: This method only updates the zip object. To update (rewrite) a zip file,
+	// either the WriteZip or WriteZipAndClose method would need to be called.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkZipEntry *AppendNewDir(const char *dirName);
 
-	// Creates a new Zip entry and initializes it with already-compressed data that is Hex encoded. 
-	// The CkZipEntry's FileName property is initialized to fileName. 
-	CkZipEntry *AppendHex(const char *pathInZip, const char *data);
 
-	// Creates a self-extracting EXE.
-#if defined(WIN32) && !defined(WINCE)
-	// eventCallbacks
-	bool WriteExe(const char *path);
-#endif
-	// Creates a image of a Zip file in memory
-	// eventCallbacks
-	bool WriteToMemory(CkByteData &outData);
+	// This method is deprecated. Applications should instead call AddFile.
+	// 
+	// Adds a file or directory to the object. If fileOrDirPath is an absolute file path and
+	// saveExtraPath is true, fileOrDirPath is converted to a relative file path for the zip entry.
+	// Otherwise, only the filename is stored. If fileOrDirPath is a relative file path, it is
+	// stored as-is in the zip, regardless of saveExtraPath.
+	// 
+	bool AppendOneFileOrDir(const char *fileOrDirPath, bool saveExtraPath);
 
-	// Closes the Zip and releases the Zip file if one was open for reading and/or writing.
+	// This method is deprecated. Applications should instead call AddFile.
+	// 
+	// Adds a file or directory to the object. If fileOrDirPath is an absolute file path and
+	// saveExtraPath is true, fileOrDirPath is converted to a relative file path for the zip entry.
+	// Otherwise, only the filename is stored. If fileOrDirPath is a relative file path, it is
+	// stored as-is in the zip, regardless of saveExtraPath.
+	// 
+	CkTask *AppendOneFileOrDirAsync(const char *fileOrDirPath, bool saveExtraPath);
+
+
+	// This method is deprecated. Applications should instead call AddSb.
+	// 
+	// Same as AppendString, but append the contents of of the sb, and allow the
+	// charset to be specified. The contents of sb is converted to charset before being
+	// added to the zip. The pathInZip is the path of the file that will be stored within
+	// the zip.
+	// 
+	// Note: This method only updates the zip object. To update (rewrite) a zip file,
+	// either the WriteZip or WriteZipAndClose method would need to be called.
+	// 
+	bool AppendSb(const char *pathInZip, CkStringBuilder &sb, const char *charset);
+
+
+	// This method is deprecated. Applications should instead call AddString.
+	// 
+	// Adds an in-memory string to the Zip object. The textData argument is converted to
+	// the ANSI charset before being added to the Zip. If the Zip were written to disk
+	// by calling WriteZip, and later unzipped, the entry would unzip to an ANSI text
+	// file.
+	// 
+	// Note: This method only updates the zip object. To update (rewrite) a zip file,
+	// either the WriteZip or WriteZipAndClose method would need to be called.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkZipEntry *AppendString(const char *internalZipFilepath, const char *textData);
+
+
+	// This method is deprecated. Applications should instead call AddString.
+	// 
+	// Same as AppendString, but allows the charset to be specified. The textData is
+	// converted to charset before being added to the zip. The internalZipFilepath is the path of the
+	// file that will be stored within the zip.
+	// 
+	// Note: This method only updates the zip object. To update (rewrite) a zip file,
+	// either the WriteZip or WriteZipAndClose method would need to be called.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkZipEntry *AppendString2(const char *internalZipFilepath, const char *textData, const char *charset);
+
+
+	// Note: This method is currently not working and will be fixed in v11.5.0
+	// 
+	// Adds all entries from another existing ZIP archive into the current ZIP object.
+	// 
+	// The zipPath argument specifies the path of a ZIP file located in the local
+	// filesystem.
+	// 
+	// All entries from the specified ZIP archive are appended to the current in-memory
+	// ZIP object.
+	// 
+	// The ZIP archive itself is not rewritten until a Write* method is called.
+	// 
+	// This method is useful for merging the contents of multiple ZIP archives into a
+	// single ZIP.
+	// 
+	bool AppendZip(const char *zipPath);
+
+
+	// Closes the currently open ZIP archive and clears all entries from the Zip
+	// object.
+	// 
+	// This method has the same effect as calling NewZip without specifying a filename.
+	// 
 	void CloseZip(void);
 
-	// Must be called once at the beginning of a program.
-	bool UnlockComponent(const char *regCode);
-	bool IsUnlocked(void) const;
 
-	// Returns -1 for failure, otherwise the return value is the number of files unzipped.
-	// These are identical to the equivalent "Extract" methods, except they return the
-	// number of files unzipped.
-	// eventCallbacks
-	int Unzip(const char *dirPath);
-	// eventCallbacks
-	int UnzipNewer(const char *dirPath);
-	// eventCallbacks
-	int UnzipInto(const char *dirPath);
-	// eventCallbacks
-	int UnzipMatching(const char *dirPath, const char *pattern, bool verbose);
-	// eventCallbacks
-	int UnzipMatchingInto(const char *dirPath, const char *pattern, bool verbose);
+	// Removes a ZIP entry from the current ZIP object.
+	// 
+	// The ZIP file itself is not rewritten until a Write* method is called.
+	// 
+	bool DeleteEntry(CkZipEntry &entry);
 
-#if defined(WIN32) && !defined(WINCE)
-	void SetExeConfigParam(const char *name, const char *value);
+
+	// Retrieves the ZIP entry at the specified zero-based index.
+	// 
+	//     * The first entry is at index 0.
+	//     * The matching entry is returned in the supplied ZipEntry object.
+	bool EntryAt(int index, CkZipEntry &entry);
+
+
+	// Finds a ZIP entry by its unique EntryID.
+	// 
+	// The matching entry is returned in the supplied ZipEntry object.
+	// 
+	bool EntryById(int id, CkZipEntry &entry);
+
+
+	// Finds the first ZIP entry whose stored path matches a wildcard pattern.
+	// 
+	//     * The wildcard character * matches zero or more characters.
+	//     * The comparison is performed against the full stored ZIP path.
+	bool EntryMatching(const char *pattern, CkZipEntry &entry);
+
+
+	// Finds a ZIP entry whose stored path exactly matches pathInZip.
+	// 
+	// The matching entry is returned in the supplied ZipEntry object.
+	// 
+	bool EntryOf(const char *pathInZip, CkZipEntry &entry);
+
+
+	// Adds a directory name to the exclusion list used by recursive append operations.
+	// 
+	//     * All directories having the specified name are skipped.
+	//     * The comparison is case-insensitive.
+	//     * Call multiple times to exclude multiple directory names.
+	// 
+	// This affects methods such as AppendFiles and AppendFilesEx.
+	// 
+	void ExcludeDir(const char *dirName);
+
+
+	// Extracts files from a Chilkat-created self-extracting EXE.
+	// 
+	//     * Files are extracted into dirPath.
+	//     * Subdirectories are automatically created as needed.
+	//     * If the EXE is encrypted, DecryptPassword must be set before extraction.
+	bool ExtractExe(const char *exePath, const char *dirPath);
+
+	// Extracts files from a Chilkat-created self-extracting EXE.
+	// 
+	//     * Files are extracted into dirPath.
+	//     * Subdirectories are automatically created as needed.
+	//     * If the EXE is encrypted, DecryptPassword must be set before extraction.
+	CkTask *ExtractExeAsync(const char *exePath, const char *dirPath);
+
+
+	// This method is deprecated. Applications should instead call EntryAt.
+	// 
+	// Return the first entry in the Zip. Call ZipEntry.NextEntry to iterate over the
+	// entries in a Zip until a NULL is returned.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkZipEntry *FirstEntry(void);
+
+
+	// This method is deprecated. Applications should instead call EntryMatching.
+	// 
+	// Returns the first entry having a filename matching a pattern. The * characters
+	// matches 0 or more of any character. The full filename, including path, is used
+	// when matching against the pattern. A NULL is returned if nothing matches.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkZipEntry *FirstMatchingEntry(const char *pattern);
+
+
+	// Returns the ZIP directory structure as an XML document.
+	// 
+	// The returned XML contains information about the entries currently contained
+	// within the ZIP archive, including files and directories.
+	// 
+	// This method is useful for inspecting ZIP contents without extracting files.
+	// 
+	// Returns the XML document as a string.
+	// 
+	bool GetDirectoryAsXML(CkString &outXml);
+
+	// Returns the ZIP directory structure as an XML document.
+	// 
+	// The returned XML contains information about the entries currently contained
+	// within the ZIP archive, including files and directories.
+	// 
+	// This method is useful for inspecting ZIP contents without extracting files.
+	// 
+	// Returns the XML document as a string.
+	// 
+	const char *getDirectoryAsXML(void);
+	// Returns the ZIP directory structure as an XML document.
+	// 
+	// The returned XML contains information about the entries currently contained
+	// within the ZIP archive, including files and directories.
+	// 
+	// This method is useful for inspecting ZIP contents without extracting files.
+	// 
+	// Returns the XML document as a string.
+	// 
+	const char *directoryAsXML(void);
+
+
+	// This method is deprecated. Applications should instead call EntryById.
+	// 
+	// Finds and returns the entry with the given entryID. (Each entry within the zip
+	// object has a unique EntryID.)
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkZipEntry *GetEntryByID(int entryID);
+
+
+	// This method is deprecated. Applications should instead call EntryAt.
+	// 
+	// Retrieves a ZipEntry by index. The first entry is at index 0. This will return
+	// directory entries as well as files.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkZipEntry *GetEntryByIndex(int index);
+
+
+	// This method is deprecated. Applications should instead call EntryOf.
+	// 
+	// Returns the entry where the file path stored within the zip equals entryName.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkZipEntry *GetEntryByName(const char *entryName);
+
+
+	// This method is deprecated and will removed in a future version of Chilkat.
+	// 
+	// Returns the current collection of exclusion patterns that have been set by
+	// SetExclusions.
+	// 
+	// The caller is responsible for deleting the object returned by this method.
+	CkStringArray *GetExclusions(void);
+
+
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Returns the value of a configuration parameter embedded within a self-extracting
+	// EXE.
+	// 
+	// The name argument should be one of the XML tag names described in the
+	// ExeXmlConfig property documentation.
+	// 
+	// For example:
+	// 
+	//     * MainTitle
+	//     * MainCaption
+	//     * SetupExe
+	// 
+	// Returns the parameter value as a string.
+	// 
 	bool GetExeConfigParam(const char *name, CkString &outStr);
-	const char *getExeConfigParam(const char *name);
-#endif
 
-	// Append this zip to a zip on disk...
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Returns the value of a configuration parameter embedded within a self-extracting
+	// EXE.
+	// 
+	// The name argument should be one of the XML tag names described in the
+	// ExeXmlConfig property documentation.
+	// 
+	// For example:
+	// 
+	//     * MainTitle
+	//     * MainCaption
+	//     * SetupExe
+	// 
+	// Returns the parameter value as a string.
+	// 
+	const char *getExeConfigParam(const char *name);
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Returns the value of a configuration parameter embedded within a self-extracting
+	// EXE.
+	// 
+	// The name argument should be one of the XML tag names described in the
+	// ExeXmlConfig property documentation.
+	// 
+	// For example:
+	// 
+	//     * MainTitle
+	//     * MainCaption
+	//     * SetupExe
+	// 
+	// Returns the parameter value as a string.
+	// 
+	const char *exeConfigParam(const char *name);
+
+
+	// Returns the largest uncompressed file size contained within the ZIP archive.
+	// 
+	// The size is returned as a string rather than an integer because the value may
+	// exceed the range of a 32-bit integer.
+	// 
+	// This method is useful when:
+	// 
+	//     * Checking for extremely large files before extraction
+	//     * Estimating required disk space
+	//     * Detecting unusually large compressed entries
+	// 
+	// Returns the size as a decimal string.
+	// 
+	bool GetMaxUncompressedSize(CkString &outStr);
+
+	// Returns the largest uncompressed file size contained within the ZIP archive.
+	// 
+	// The size is returned as a string rather than an integer because the value may
+	// exceed the range of a 32-bit integer.
+	// 
+	// This method is useful when:
+	// 
+	//     * Checking for extremely large files before extraction
+	//     * Estimating required disk space
+	//     * Detecting unusually large compressed entries
+	// 
+	// Returns the size as a decimal string.
+	// 
+	const char *getMaxUncompressedSize(void);
+	// Returns the largest uncompressed file size contained within the ZIP archive.
+	// 
+	// The size is returned as a string rather than an integer because the value may
+	// exceed the range of a 32-bit integer.
+	// 
+	// This method is useful when:
+	// 
+	//     * Checking for extremely large files before extraction
+	//     * Estimating required disk space
+	//     * Detecting unusually large compressed entries
+	// 
+	// Returns the size as a decimal string.
+	// 
+	const char *maxUncompressedSize(void);
+
+
+	// Checks whether a file extension is contained in the internal "no-compression"
+	// extension list.
+	// 
+	// Files having extensions in this list are stored without compression because they
+	// are typically already compressed.
+	// 
+	// The extension may be specified with or without the leading dot.
+	// 
+	// For example, both of the following are valid:
+	// 
+	//     *.jpg
+	//     * jpg
+	// 
+	// Returns true if the extension exists in the list, otherwise returns false.
+	// 
+	bool IsNoCompressExtension(const char *fileExtension);
+
+
+	// Checks whether a ZIP archive uses legacy Zip 2.0 password protection.
+	// 
+	// The zipPath argument specifies the path of a ZIP file in the local filesystem.
+	// 
+	// This method checks only for traditional Zip 2.0 password protection.
+	// 
+	// Returns true if the ZIP archive is password protected, otherwise returns
+	// false.
+	// 
+	bool IsPasswordProtected(const char *zipPath);
+
+
+	// Loads the caller of the task's async method.
+	bool LoadTaskCaller(CkTask &task);
+
+
+	// Initializes a new empty ZIP archive.
+	// 
+	//     * If another ZIP archive is currently open, it is closed.
+	//     * All existing in-memory ZIP entries are discarded.
+	//     * The FileName property is set to zipPath.
+	// 
+	// No ZIP file is actually created until a Write* method is called.
+	// 
+	// This method resets the Zip object to a clean empty state.
+	// 
+	bool NewZip(const char *zipPath);
+
+
+	// Opens a ZIP archive contained entirely within a BinData object.
+	// 
+	// This method allows ZIP archives to be processed entirely in memory without
+	// requiring a filesystem file.
+	// 
+	// When a ZIP archive is opened:
+	// 
+	//     * PasswordProtect is automatically set if legacy Zip 2.0 encryption is
+	//     detected.
+	//     * Encryption is automatically set if strong encryption is detected.
+	//     * A value of 4 for Encryption indicates WinZip-compatible AES encryption.
+	bool OpenBd(CkBinData &binData);
+
+
+	// (Windows only)
+	// 
+	// Opens a ZIP archive embedded as a resource within a Windows executable.
+	// 
+	//     * exeFilename specifies the EXE file path.
+	//     * resourceName specifies the embedded resource name containing the ZIP data.
+	// 
+	// This method is useful when ZIP archives are packaged within Windows
+	// applications.
+	// 
+	bool OpenEmbedded(const char *exeFilename, const char *resourceName);
+
+
+	// Opens a ZIP archive from in-memory byte data.
+	// 
+	// When the ZIP archive is opened:
+	// 
+	//     * PasswordProtect is automatically set if legacy password protection is
+	//     detected.
+	//     * Encryption is automatically set if strong encryption is detected.
+	//     * Encryption = 4 indicates AES encryption.
+	bool OpenFromByteData(CkByteData &byteData);
+
+
+	// Opens a ZIP archive directly from in-memory binary data.
+	// 
+	// This allows ZIP processing without using filesystem files.
+	// 
+	// Typical use cases include:
+	// 
+	//     * ZIP data loaded from a database
+	//     * ZIP data received from HTTP responses
+	//     * ZIP data stored entirely in memory
+	// 
+	// When the ZIP archive is opened:
+	// 
+	//     * PasswordProtect is automatically set if Zip 2.0 encryption is detected.
+	//     * Encryption is automatically set if strong encryption is detected.
+	bool OpenFromMemory(CkByteData &inData);
+
+
+	// Opens a ZIP archive from the local filesystem.
+	// 
+	// The zipPath argument specifies the path of the ZIP file to open.
+	// 
+	// Encrypted ZIP archives may be opened without providing a password, but encrypted
+	// entries cannot be extracted until the correct password is provided using
+	// DecryptPassword.
+	// 
+	// When the ZIP archive is opened:
+	// 
+	//     * PasswordProtect is automatically set if legacy Zip 2.0 encryption is
+	//     detected.
+	//     * Encryption is automatically set if strong encryption is detected.
+	//     * Encryption = 4 indicates WinZip-compatible AES encryption.
+	bool OpenZip(const char *zipPath);
+
+	// Opens a ZIP archive from the local filesystem.
+	// 
+	// The zipPath argument specifies the path of the ZIP file to open.
+	// 
+	// Encrypted ZIP archives may be opened without providing a password, but encrypted
+	// entries cannot be extracted until the correct password is provided using
+	// DecryptPassword.
+	// 
+	// When the ZIP archive is opened:
+	// 
+	//     * PasswordProtect is automatically set if legacy Zip 2.0 encryption is
+	//     detected.
+	//     * Encryption is automatically set if strong encryption is detected.
+	//     * Encryption = 4 indicates WinZip-compatible AES encryption.
+	CkTask *OpenZipAsync(const char *zipPath);
+
+
+	// Efficiently appends additional entries to an existing ZIP archive.
+	// 
+	// The zipPath argument specifies the path of an existing ZIP archive in the local
+	// filesystem.
+	// 
+	// This method avoids rewriting existing entries.
+	// 
+	//     * Existing ZIP entries remain unchanged.
+	//     * New entries are appended to the end of the ZIP archive.
+	//     * The ZIP central directory is updated accordingly.
+	// 
+	// This method is typically faster than rebuilding the entire ZIP archive.
+	// 
 	bool QuickAppend(const char *zipPath);
 
-	// Set the compression level for all entries in the Zip.
+	// Efficiently appends additional entries to an existing ZIP archive.
+	// 
+	// The zipPath argument specifies the path of an existing ZIP archive in the local
+	// filesystem.
+	// 
+	// This method avoids rewriting existing entries.
+	// 
+	//     * Existing ZIP entries remain unchanged.
+	//     * New entries are appended to the end of the ZIP archive.
+	//     * The ZIP central directory is updated accordingly.
+	// 
+	// This method is typically faster than rebuilding the entire ZIP archive.
+	// 
+	CkTask *QuickAppendAsync(const char *zipPath);
+
+
+	// Removes a file extension from the internal "no-compression" extension list.
+	// 
+	// After removal, files having this extension may be compressed normally.
+	// 
+	// The extension may be specified with or without the leading dot.
+	// 
+	void RemoveNoCompressExtension(const char *fileExtension);
+
+
+	// Sets the compression level for all file and data entries currently contained
+	// within the ZIP object.
+	// 
+	//     * 0 → No compression
+	//     * 9 → Maximum compression
+	// 
+	// The default compression level is 6.
+	// 
+	// Important: This method should be called after files or data entries have already
+	// been added to the ZIP object.
+	// 
+	// The compression level cannot be changed for mapped entries originating from an
+	// already-open ZIP archive.
+	// 
 	void SetCompressionLevel(int level);
 
-#if defined(WIN32) && !defined(WINCE)
-	// eventCallbacks
-	bool WriteExe2(const char *exePath, const char *destExePath, bool bAesEncrypt, 
-	    int keyLength, const char *password);
-#endif
 
-	const char *tempDir(void);
-	const char *appendFromDir(void);
-	const char *proxy(void);
-	const char *comment(void);
-	const char *fileName(void);
-	const char *pathPrefix(void);
-	const char *getDirectoryAsXML(void);
+	// Specifies a collection of wildcard exclusion patterns used when adding files to
+	// the ZIP archive.
+	// 
+	// Each pattern may use the wildcard character * to match zero or more characters.
+	// 
+	// Files matching any exclusion pattern are skipped.
+	// 
+	void SetExclusions(CkStringArray &excludePatterns);
 
-#if defined(WIN32) && !defined(WINCE)
-	const char *autoRun(void);
-	const char *autoRunParams(void);
-	const char *exeTitle(void);
-	const char *exeUnzipCaption(void);
-	const char *exeUnzipDir(void);
-	const char *exeIconFile(void);
 
-	bool get_ExeWaitForSetup(void);
-	void put_ExeWaitForSetup(bool newVal);
-#endif
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Sets a configuration parameter embedded within a self-extracting EXE created by
+	// WriteExe or WriteExe2.
+	// 
+	// The paramName should be one of the XML configuration tag names described in the
+	// ExeXmlConfig property documentation.
+	// 
+	// For example:
+	// 
+	//     SetExeConfigParam("MainUnzipBtn","Extract")
+	// 
+	// This changes the text displayed on the self-extractor's main unzip button.
+	// 
+	void SetExeConfigParam(const char *paramName, const char *paramValue);
 
-	// FILECOUNT_BEGIN
-	int get_FileCount(void);
-	// FILECOUNT_END
-	// HASZIPFORMATERRORS_BEGIN
-	bool get_HasZipFormatErrors(void);
-	// HASZIPFORMATERRORS_END
-	// TEXTFLAG_BEGIN
-	bool get_TextFlag(void);
-	void put_TextFlag(bool newVal);
-	// TEXTFLAG_END
-	// EXTRACTINTO_BEGIN
-	// eventCallbacks
-	bool ExtractInto(const char *dirPath);
-	// EXTRACTINTO_END
-	// CASESENSITIVE_BEGIN
-	bool get_CaseSensitive(void);
-	void put_CaseSensitive(bool newVal);
-	// CASESENSITIVE_END
-	// VERIFYPASSWORD_BEGIN
+
+	// Sets both the decrypt password and encrypt password.
+	// 
+	// This method affects:
+	// 
+	//     * DecryptPassword
+	//     * EncryptPassword
+	// 
+	// Note: This method is deprecated in favor of setting DecryptPassword and
+	// EncryptPassword separately.
+	// 
+	void SetPassword(const char *password);
+
+
+	// Extracts all files and directories from the ZIP archive.
+	// 
+	//     * dirPath specifies the destination directory.
+	//     * Subdirectories are automatically created as needed.
+	// 
+	// Returns the number of files extracted.
+	// 
+	// Returns -1 if a failure occurs.
+	// 
+	int Unzip(const char *dirPath);
+
+	// Extracts all files and directories from the ZIP archive.
+	// 
+	//     * dirPath specifies the destination directory.
+	//     * Subdirectories are automatically created as needed.
+	// 
+	// Returns the number of files extracted.
+	// 
+	// Returns -1 if a failure occurs.
+	// 
+	CkTask *UnzipAsync(const char *dirPath);
+
+
+	// Extracts all files into a single directory.
+	// 
+	// All directory path information stored within the ZIP archive is ignored.
+	// 
+	// If multiple files have the same filename, later extracted files overwrite
+	// earlier ones.
+	// 
+	// Returns the number of files extracted, or -1 on failure.
+	// 
+	int UnzipInto(const char *dirPath);
+
+	// Extracts all files into a single directory.
+	// 
+	// All directory path information stored within the ZIP archive is ignored.
+	// 
+	// If multiple files have the same filename, later extracted files overwrite
+	// earlier ones.
+	// 
+	// Returns the number of files extracted, or -1 on failure.
+	// 
+	CkTask *UnzipIntoAsync(const char *dirPath);
+
+
+	// Extracts only entries whose stored paths match a wildcard pattern.
+	// 
+	//     * The wildcard character * matches zero or more characters.
+	//     * If no wildcard is used, an exact filename match is required.
+	// 
+	// Subdirectories are automatically created as needed.
+	// 
+	// Returns the number of files extracted, or -1 on failure.
+	// 
+	int UnzipMatching(const char *dirPath, const char *pattern, bool verbose);
+
+	// Extracts only entries whose stored paths match a wildcard pattern.
+	// 
+	//     * The wildcard character * matches zero or more characters.
+	//     * If no wildcard is used, an exact filename match is required.
+	// 
+	// Subdirectories are automatically created as needed.
+	// 
+	// Returns the number of files extracted, or -1 on failure.
+	// 
+	CkTask *UnzipMatchingAsync(const char *dirPath, const char *pattern, bool verbose);
+
+
+	// Extracts matching entries into a single directory while ignoring all stored ZIP
+	// path information.
+	// 
+	// Matching behavior is identical to UnzipMatching.
+	// 
+	// If duplicate filenames occur, later extracted files overwrite earlier ones.
+	// 
+	// Returns the number of files extracted, or -1 on failure.
+	// 
+	int UnzipMatchingInto(const char *dirPath, const char *pattern, bool verbose);
+
+	// Extracts matching entries into a single directory while ignoring all stored ZIP
+	// path information.
+	// 
+	// Matching behavior is identical to UnzipMatching.
+	// 
+	// If duplicate filenames occur, later extracted files overwrite earlier ones.
+	// 
+	// Returns the number of files extracted, or -1 on failure.
+	// 
+	CkTask *UnzipMatchingIntoAsync(const char *dirPath, const char *pattern, bool verbose);
+
+
+	// Extracts only files that:
+	// 
+	//     * Do not already exist
+	//     * Or have older modification timestamps than the ZIP entry
+	// 
+	// Subdirectories are automatically created as needed.
+	// 
+	// Returns the number of files extracted, or -1 on failure.
+	// 
+	int UnzipNewer(const char *dirPath);
+
+	// Extracts only files that:
+	// 
+	//     * Do not already exist
+	//     * Or have older modification timestamps than the ZIP entry
+	// 
+	// Subdirectories are automatically created as needed.
+	// 
+	// Returns the number of files extracted, or -1 on failure.
+	// 
+	CkTask *UnzipNewerAsync(const char *dirPath);
+
+
+	// Verifies that the current DecryptPassword value is correct for the currently
+	// opened ZIP archive.
+	// 
+	// This method allows password validation before attempting extraction.
+	// 
+	// Returns true if the password is valid, otherwise returns false.
+	// 
 	bool VerifyPassword(void);
-	// VERIFYPASSWORD_END
-	// WRITEEXETOMEMORY_BEGIN
-#if defined(WIN32) && !defined(WINCE)
-	// eventCallbacks
-	bool WriteExeToMemory(CkByteData &outBytes);
-#endif
-	// WRITEEXETOMEMORY_END
-	// OVERWRITEEXISTING_BEGIN
-	bool get_OverwriteExisting(void);
-	void put_OverwriteExisting(bool newVal);
-	// OVERWRITEEXISTING_END
-	// ADDNOCOMPRESSIONEXTENSION_BEGIN
-	void AddNoCompressExtension(const char *fileExtension);
-	// ADDNOCOMPRESSIONEXTENSION_END
-	// REMOVENOCOMPRESSIONEXTENSION_BEGIN
-	void RemoveNoCompressExtension(const char *fileExtension);
-	// REMOVENOCOMPRESSIONEXTENSION_END
-	// ISNOCOMPRESSIONEXTENSION_BEGIN
-	bool IsNoCompressExtension(const char *fileExtension);
-	// ISNOCOMPRESSIONEXTENSION_END
-	// VERBOSELOGGING_BEGIN
-	bool get_VerboseLogging(void);
-	void put_VerboseLogging(bool newVal);
-	// VERBOSELOGGING_END
-	// IGNOREACCESSDENIED_BEGIN
-	bool get_IgnoreAccessDenied(void);
-	void put_IgnoreAccessDenied(bool newVal);
-	// IGNOREACCESSDENIED_END
-	// CLEARREADONLYATTR_BEGIN
-	bool get_ClearReadOnlyAttr(void);
-	void put_ClearReadOnlyAttr(bool newVal);
-	// CLEARREADONLYATTR_END
 
-	// ZIP_INSERT_POINT
+
+	// Writes the ZIP archive to a BinData object instead of a filesystem file.
+	// 
+	// The generated ZIP archive exists entirely in memory.
+	// 
+	// The ZIP data written by this method may later be opened using OpenBd.
+	// 
+	bool WriteBd(CkBinData &binData);
+
+	// Writes the ZIP archive to a BinData object instead of a filesystem file.
+	// 
+	// The generated ZIP archive exists entirely in memory.
+	// 
+	// The ZIP data written by this method may later be opened using OpenBd.
+	// 
+	CkTask *WriteBdAsync(CkBinData &binData);
+
+
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Creates a Windows self-extracting executable (EXE).
+	// 
+	// The generated EXE contains both the extraction logic and the ZIP archive data.
+	// 
+	// There are no limitations on:
+	// 
+	//     * Total ZIP size
+	//     * Individual file size
+	//     * Number of files
+	// 
+	// The generated EXE supports the following command-line arguments:
+	// 
+	//     * -log logFileName
+	//     * -unzipDir unzipDirectoryPath
+	//     * -pwd password
+	//     * -ap autoRunParams
+	bool WriteExe(const char *exeFilename);
+
+	// (Windows only, for creating self-extracting EXE's)
+	// 
+	// Creates a Windows self-extracting executable (EXE).
+	// 
+	// The generated EXE contains both the extraction logic and the ZIP archive data.
+	// 
+	// There are no limitations on:
+	// 
+	//     * Total ZIP size
+	//     * Individual file size
+	//     * Number of files
+	// 
+	// The generated EXE supports the following command-line arguments:
+	// 
+	//     * -log logFileName
+	//     * -unzipDir unzipDirectoryPath
+	//     * -pwd password
+	//     * -ap autoRunParams
+	CkTask *WriteExeAsync(const char *exeFilename);
+
+
+	// (Relevant only when running on a Microsoft Windows operating system.) Writes a
+	// self-extracting MS-Windows EXE with no limitations on total file size and no
+	// limitations on the size of any one file contained within. The 1st argument is
+	// the pre-existing EXE housing that is to be used. Essentially, the
+	// self-extracting EXE is a concatenation of the EXE housing and the
+	// compressed/encrypted data. The 2nd argument is the name of the EXE to create or
+	// overwrite. A housing for use with WriteExe2 can be found here:
+	// https://www.chilkatsoft.com/d2/SaExtract.zip
+	bool WriteExe2(const char *exePath, const char *destExePath, bool bAesEncrypt, int keyLength, const char *password);
+
+	// (Relevant only when running on a Microsoft Windows operating system.) Writes a
+	// self-extracting MS-Windows EXE with no limitations on total file size and no
+	// limitations on the size of any one file contained within. The 1st argument is
+	// the pre-existing EXE housing that is to be used. Essentially, the
+	// self-extracting EXE is a concatenation of the EXE housing and the
+	// compressed/encrypted data. The 2nd argument is the name of the EXE to create or
+	// overwrite. A housing for use with WriteExe2 can be found here:
+	// https://www.chilkatsoft.com/d2/SaExtract.zip
+	CkTask *WriteExe2Async(const char *exePath, const char *destExePath, bool bAesEncrypt, int keyLength, const char *password);
+
+
+	// (Relevant only when running on a Microsoft Windows operating system.) Same as
+	// WriteExe, but instead of writing a file, the MS-Windows EXE is written to
+	// memory.
+	bool WriteExeToMemory(CkByteData &outBytes);
+
+	// (Relevant only when running on a Microsoft Windows operating system.) Same as
+	// WriteExe, but instead of writing a file, the MS-Windows EXE is written to
+	// memory.
+	CkTask *WriteExeToMemoryAsync(void);
+
+
+	// Same as WriteZip, but instead of writing the Zip to a file, it writes to memory.
+	// Zips that are written to memory can also be opened from memory by calling
+	// OpenFromMemory.
+	bool WriteToMemory(CkByteData &outData);
+
+	// Same as WriteZip, but instead of writing the Zip to a file, it writes to memory.
+	// Zips that are written to memory can also be opened from memory by calling
+	// OpenFromMemory.
+	CkTask *WriteToMemoryAsync(void);
+
+
+	// Saves the Zip to a file and implictly re-opens it so further operations can
+	// continue. Use WriteZipAndClose to write and close the Zip. There is no
+	// limitation on the size of files that may be contained within a .zip, the total
+	// number of files in a .zip, or the total size of a .zip. If necessary, WriteZip
+	// will use the ZIP64 file format extensions when 4GB or file count limitations of
+	// the old zip file format are exceeded.
+	bool WriteZip(void);
+
+	// Saves the Zip to a file and implictly re-opens it so further operations can
+	// continue. Use WriteZipAndClose to write and close the Zip. There is no
+	// limitation on the size of files that may be contained within a .zip, the total
+	// number of files in a .zip, or the total size of a .zip. If necessary, WriteZip
+	// will use the ZIP64 file format extensions when 4GB or file count limitations of
+	// the old zip file format are exceeded.
+	CkTask *WriteZipAsync(void);
+
+
+	// Saves the Zip to a file and closes it. On return, the Zip object will be in the
+	// state as if NewZip had been called. There is no limitation on the size of files
+	// that may be contained within a .zip, the total number of files in a .zip, or the
+	// total size of a .zip. If necessary, WriteZip will use the ZIP64 file format
+	// extensions when 4GB or file count limitations of the old zip file format are
+	// exceeded.
+	bool WriteZipAndClose(void);
+
+	// Saves the Zip to a file and closes it. On return, the Zip object will be in the
+	// state as if NewZip had been called. There is no limitation on the size of files
+	// that may be contained within a .zip, the total number of files in a .zip, or the
+	// total size of a .zip. If necessary, WriteZip will use the ZIP64 file format
+	// extensions when 4GB or file count limitations of the old zip file format are
+	// exceeded.
+	CkTask *WriteZipAndCloseAsync(void);
+
+
+
+
+
 
 	// END PUBLIC INTERFACE
 
 
-	bool AppendMultiple(const CkStringArray *fileSpecs, bool recurse);
-
-#if defined(WIN32) && !defined(WINCE)
-	// Embed data from memory into an EXE.
-	bool AddEmbeddedFromMemory(const char *exePath, const char *resourceName, const unsigned char *pByteData, unsigned long szByteData);
-#endif
-	void SetExclusions(const CkStringArray *excludePatterns);
-	bool DeleteEntry(const CkZipEntry *entry);
-	bool AppendOneFileOrDir(const char *path);
-
-
-    // Everything below is for internal use only.
-    private:
-	CkZipProgress *m_callback;
-
-	// Don't allow assignment or copying these objects.
-	CkZip(const CkZip &) { } 
-	CkZip &operator=(const CkZip &) { return *this; }
-	CkZip(void *impl);
-
-
-
 };
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (pop)
 #endif
-
-
+	
 #endif
-
-

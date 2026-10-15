@@ -2,40 +2,57 @@
 //
 //////////////////////////////////////////////////////////////////////
 
+// This header is NOT generated.
+// Some methods may be undocumented in the online reference documentation.
 
 #ifndef _CKSTRING_H
 #define _CKSTRING_H
 
-
+#include "chilkatDefs.h"
 
 #include "CkObject.h"
 
-#if !defined(WIN32) && !defined(WINCE)
-#include "SystemTime.h"
-#endif
 
 class CkStringArray;
+class CkStringArrayW;
 
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (push, 8)
 #endif
  
 
 
 // CLASS: CkString
-class CkString : public CkObject
+class CK_VISIBLE_PUBLIC CkString : public CkObject
 {
     public:
 	CkString();
 	~CkString();
 
-	CkString(const CkString &);
-	CkString &operator=(const CkString &);
+	static CkString *createNew(void);
+	static CkString *createNew2(int progLang);
 
-	CkString &operator=(const char *);
-	CkString &operator=(int);
-	CkString &operator=(bool);
-	CkString &operator=(char);
+	// Construct with an ANSI string
+	CkString(const char *s_ansi);
+	// Construct with a utf-8 string.  The 2nd arg is unused.
+	CkString(const char *s_utf8, bool bUnused);
+
+	CkString(const CkString &str);
+	CkString &operator=(const CkString &str);
+
+	CkString &operator=(const char *s);
+	CkString &operator=(int n);
+	CkString &operator=(bool b);
+	CkString &operator=(char c);
+
+	bool operator==(const CkString& s) const;
+	bool operator==(const char *s) const;
+	bool operator!=(const CkString& s) const;
+	bool operator!=(const char *s) const;
+
+	// Append s to this CkString
+	CkString &operator+=(const CkString& s);
+	CkString &operator+=(const char *s);
 
        // 
        // operator to cast to a const char *
@@ -43,11 +60,26 @@ class CkString : public CkObject
        operator const char *();
        operator const wchar_t *();
 
-        void appendHexData(const char *pByteData, unsigned long szByteData);
 
 	// BEGIN PUBLIC INTERFACE
 	bool get_Utf8(void) const;
 	void put_Utf8(bool b);
+
+
+	int get_NumArabic(void);
+	int get_NumAscii(void);
+	int get_NumCentralEuro(void);  // such as Czech, Polish, etc.
+	int get_NumChinese(void);
+	int get_NumCyrillic(void);
+	int get_NumGreek(void);
+	int get_NumHebrew(void);
+	int get_NumJapanese(void);
+	int get_NumKorean(void);
+	int get_NumLatin(void);	    // Western European
+	int get_NumThai(void);
+
+	void punyEncode(void);
+	void punyDecode(void);
 
 	// Load the contents of a text file into the CkString object.
 	// The string is cleared before loading.
@@ -92,6 +124,10 @@ class CkString : public CkObject
         int removeAll(CkString &str);
         bool removeFirst(CkString &str);
 	void chopAtStr(CkString &str);
+	void chopAtStr(const char *s);
+
+	// For Q/B encoding, such as "?UTF-8?Q?Chilkat=20Software=2C=20Inc?= <support@chilkatsoft.com>"
+	void qbDecode(void);
 
 	void urlDecode(const char *charset);
 	void urlEncode(const char *charset);
@@ -124,48 +160,67 @@ class CkString : public CkObject
 	// SYSTEMTIME is defined in <windows.h>
 	// For more information, Google "SYSTEMTIME"
 	// sysTime should represent a local date/time
-	void appendDateRfc822(SYSTEMTIME &sysTime);
+	// Removed in Chilkat v11.0.0
+	//void appendDateRfc822(SYSTEMTIME &sysTime);
+	//void appendDateRfc822Gmt(SYSTEMTIME &sysTime);
 
-	void appendDateRfc822Gmt(SYSTEMTIME &sysTime);
-
-	// Self explanatory, right?
+	// Clears the string (i.e. resets the length to 0).  The internal buffer is
+	// not deallocated.  Deallocation happens when the CkString object is destructed.
 	void clear(void);
+
 	void prepend(const char *s);	    
 	void prependW(const wchar_t *s);
 
+	// Causes the internal buffers to always be securely cleared by zeroing out the memory prior to deallocation or clearing.
+	bool get_SecureClear(void) const;
+	void put_SecureClear(bool b);
+
+
 	void appendInt(int n);
 	void append(const char *s);	    
+	void append(const CkString &str);	    
         void appendChar(char c);
+        void appendCharU(wchar_t c);
 	void appendN(const char *pByteData, unsigned long szByteData);	
         void appendStr(const CkString &str);
 	void appendEnc(const char *s, const char *charEncoding);	// such as "utf-8", "windows-1252", "shift_JIS", etc.
 	void appendRandom(int numBytes, const char *encoding);	// such as "base64", "hex", "qp", "url", etc.
 
 	// Convert the binary data to a hex string representation and append.
-        void appendHexData(const unsigned char *pByteData, unsigned long szByteData);
+        void appendHexData(const void *pByteData, unsigned long szByteData);
 
 	// Same as clearing the string and appending.
         void setString(const char *s);
         void setStringAnsi(const char *s);
         void setStringUtf8(const char *s);
 
-	// To/From Unicode...
+	// To/From Unicode (wchar_t)
+	// On some systems wchar_t is utf-16, on others it is utf-32.
 	void setStringU(const wchar_t *unicode);
+	void setStringUtf16(const uint16_t *unicode);
 	void appendU(const wchar_t *unicode);
 	void appendNU(const wchar_t *unicode, int numChars);
 	const wchar_t *getUnicode(void) const;
 
+	// Returns utf16 chars having the byte order of the local computer.
+	// (Returns utf16LE on little-endian machines, and utf16BE on big-endian machines)
+	const uint16_t *getUtf16(void) const;
+
+	void removeDelimited(const char *beginDelim, const char *endDelim, bool caseSensitive);
+
 	// To ANSI...
 	const char *getAnsi(void) const;
+	const char *getStringAnsi(void) const { return getAnsi(); }
 
 	// To utf-8...
 	const char *getUtf8(void) const;
+	const char *getStringUtf8(void) const { return getUtf8(); }
 
 	// Get any multi-byte encoding.
-	const char *getEnc(const char *encoding) const;
-	const char *getEncW(const wchar_t *encoding) const;
+	const char *getEnc(const char *encoding);
+	const char *getEncW(const wchar_t *encoding);
 
-	// Same as strcmp
+	// Same as ckStrCmp
 	int compareStr(const CkString &str) const;	// Compare against another CkString
 
 	const char *getString(void) const;
@@ -181,18 +236,24 @@ class CkString : public CkObject
 	void trimInsideSpaces(void);
 
         // Case sensitive replacement functions.
-	// Return the number of occurances replaced.
+	// Return the number of occurrences replaced.
+	// (Yes, we know that occurrence is misspelled here.  It was a mistake from many years ago..)
         int replaceAllOccurances(const char *pattern, const char *replacement);
 	int replaceAllOccurancesW(const wchar_t *pattern, const wchar_t *replacement);
 
+	// (Yes, we know that occurrence is misspelled here.  It was a mistake from many years ago..)
         bool replaceFirstOccurance(const char *pattern, const char *replacement);
 	bool replaceFirstOccuranceW(const wchar_t *pattern, const wchar_t *replacement);
 
-	// Searches the string for the 1st occurance of startStr.  Then 
-	// searches for the first occurance of endStr after startStr.
-	// If both startStr and endStr are found, then replaces all occurances
+	// (Yes, we know that occurrence is misspelled here.  It was a mistake from many years ago..)
+	int replaceAllOccurancesNoCase(const char *pattern, const char *replacement);
+        bool replaceFirstOccuranceNoCase(const char *pattern, const char *replacement);
+
+	// Searches the string for the 1st occurrence of startStr.  Then 
+	// searches for the first occurrence of endStr after startStr.
+	// If both startStr and endStr are found, then replaces all occurrences
 	// of  pattern with replacement.
-	// Then continues past the endStr searching for the next occurance of StartStr
+	// Then continues past the endStr searching for the next occurrence of StartStr
 	// and repeating until replacements are made within all chunks delimited by
 	// startStr/endStr are made.
 
@@ -200,12 +261,14 @@ class CkString : public CkObject
 	// then the startStr and endStr can be "<description>" and "</description>" respectively,
 	// and the next within each pair can be search/replaced.
 
-	// Return the number of occurances replaced.
+	// Return the number of occurrences replaced.
+	// (Yes, we know that occurrence is misspelled here.  It was a mistake from many years ago..)
 	int replaceAllOccurancesBetween(const char *startStr, 
 	    const char *endStr,
 	    const char *pattern, 
 	    const char *replacement);
 
+	// (Yes, we know that occurrence is misspelled here.  It was a mistake from many years ago..)
 	int replaceAllOccurancesBetweenW(const wchar_t *startStr, 
 	    const wchar_t *endStr,
 	    const wchar_t *pattern, 
@@ -222,7 +285,7 @@ class CkString : public CkObject
         // Return the last (ANSI) character in the string.
         char lastChar(void);
 
-	// Return the number of occurances of ch in the string.
+	// Return the number of occurrences of ch in the string.
 	int countCharOccurances(char ch);
 
         // Remove the last N chars from the string.
@@ -236,6 +299,9 @@ class CkString : public CkObject
         // Example: '<' is converted to &lt;
         void encodeXMLSpecial(void);    // Convert '<' to &lt; (etc.)
         void decodeXMLSpecial(void);    // Convert &lt; to '<' (etc.)
+
+	// Return true if any char in s is contained in this CkString.
+	bool containsAnyOf(const char *s) const;
 
         bool containsSubstring(const char *substr) const;	
         bool containsSubstringNoCase(const char *substr) const;	
@@ -255,8 +321,8 @@ class CkString : public CkObject
         bool equals(const char *s) const;   
         bool equalsIgnoreCase(const char *s) const;
 
-        bool equalsStr(CkString &s) const;
-        bool equalsIgnoreCaseStr(CkString &s) const;
+        bool equalsStr(const CkString &s) const;
+        bool equalsIgnoreCaseStr(const CkString &s) const;
 
         bool equalsW(const wchar_t *s) const;   
         bool equalsIgnoreCaseW(const wchar_t *s) const;
@@ -266,9 +332,11 @@ class CkString : public CkObject
 
         // Remove all occurances of a particular character.
         void removeCharOccurances(char c);
+        void removeCharOccurancesU(wchar_t c);
 
 	// Replace all occurance of c1 with c2.
 	void replaceChar(char c1, char c2);
+	void replaceCharU(wchar_t c1, wchar_t c2);
 
 	// Replace the first occurance of c1 with a null terminator
 	void chopAtFirstChar(char c1);
@@ -280,6 +348,13 @@ class CkString : public CkObject
 	// charset can be "ansi", "utf-8", "unicode", or anything else such as "iso-8859-1"
 	bool saveToFile(const char *path, const char *charset);
 	bool saveToFileW(const wchar_t *path, const wchar_t *charset);
+
+	CkStringArrayW *w_split(char splitChar, bool exceptDoubleQuoted, bool exceptEscaped, bool keepEmpty) const;
+	CkStringArrayW *w_split2(const char *splitCharSet, bool exceptDoubleQuoted, bool exceptEscaped, bool keepEmpty) const;
+	CkStringArrayW *w_split2W(const wchar_t *splitCharSet, bool exceptDoubleQuoted, bool exceptEscaped, bool keepEmpty) const;
+	CkStringArrayW *w_tokenize(const char *punctuation) const;
+	CkStringArrayW *w_tokenizeW(const wchar_t *punctuation) const;
+	CkStringArrayW *w_splitAtWS(void) const;
 
 	CkStringArray *split(char splitChar, bool exceptDoubleQuoted, bool exceptEscaped, bool keepEmpty) const;
 	CkStringArray *split2(const char *splitCharSet, bool exceptDoubleQuoted, bool exceptEscaped, bool keepEmpty) const;
@@ -301,10 +376,6 @@ class CkString : public CkObject
 
 	void minimizeMemory(void);
 
-	// STRING_INSERT_POINT
-
-	// END PUBLIC INTERFACE
-
 	bool isInternalPtr(const char *str);
 
     private:
@@ -318,7 +389,7 @@ class CkString : public CkObject
 	void *getImplX(void) const { return m_x; }
 
 };
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (pop)
 #endif
 

@@ -2,171 +2,288 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#ifndef _CKSTRINGARRAY_H_INCLUDED
-#define _CKSTRINGARRAY_H_INCLUDED
+// This header is generated for Chilkat 11.6.0
 
+#define _CkVersion 11.6.0
+
+#ifndef _CkStringArray_H
+#define _CkStringArray_H
+	
+#include "chilkatDefs.h"
 #include "CkString.h"
-class CkByteData;
-
 #include "CkMultiByteBase.h"
 
-#ifndef __sun__
+class CkTask;
+
+
+
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (push, 8)
 #endif
- 
+
+
+#undef Copy
 
 // CLASS: CkStringArray
-class CkStringArray : public CkMultiByteBase  
+class CK_VISIBLE_PUBLIC CkStringArray  : public CkMultiByteBase
 {
     private:
-	// Don't allow assignment or copying these objects.
-	CkStringArray(const CkStringArray &c) { } 
-	CkStringArray &operator=(const CkStringArray &) { return *this; }
-	CkStringArray(void *impl);
 
+	// Don't allow assignment or copying these objects.
+	CkStringArray(const CkStringArray &);
+	CkStringArray &operator=(const CkStringArray &);
 
     public:
-	void inject(void *impl);
-
-	CkStringArray();
-	virtual ~CkStringArray();
+	CkStringArray(void);
+	virtual ~CkStringArray(void);
 
 	static CkStringArray *createNew(void);
+	static CkStringArray *createNew2(int progLang);
+	void CK_VISIBLE_PRIVATE inject(void *impl);
 
 	// May be called when finished with the object to free/dispose of any
 	// internal resources held by the object. 
 	void dispose(void);
 
+	
+		
+	
+
 	// BEGIN PUBLIC INTERFACE
-	// LASTSTRING_BEGIN
-	bool LastString(CkString &outStr);
-	const char *lastString(void);
-	// LASTSTRING_END
 
-	// GETSTRING_BEGIN
-	bool GetString(int index, CkString &outStr);
-	const char *getString(int index);
-	// GETSTRING_END
+	// ----------------------
+	// Properties
+	// ----------------------
+	// The number of strings contained within the object's internal array (i.e. ordered
+	// collection).
+	// 
+	// Important: This is an object that contains a collection of strings. Although the
+	// class/object name includes the word Array, it should not be confused with an
+	// array in the sense of the primitive array type used in a given programming
+	// language.
+	// 
+	int get_Count(void);
 
-	// REMOVEAT_BEGIN
-	bool RemoveAt(int index);
-	// REMOVEAT_END
+	// If true, strings are always automatically converted to use CRLF line endings.
+	// If false, strings are automatically converted to use bare LF line endings.
+	bool get_Crlf(void);
+	// If true, strings are always automatically converted to use CRLF line endings.
+	// If false, strings are automatically converted to use bare LF line endings.
+	void put_Crlf(bool newVal);
 
-	// POP_BEGIN
-	bool Pop(CkString &outStr);
-	const char *pop(void);
-	// POP_END
+	// The number of strings contained within the internal collection. (Identical to
+	// the Count property.)
+	int get_Length(void);
 
-	// APPEND_BEGIN
+	// If true, whitespace, including carriage-returns and linefeeds, are
+	// automatically removed from the beginning and end of a string when added to the
+	// collection.
+	bool get_Trim(void);
+	// If true, whitespace, including carriage-returns and linefeeds, are
+	// automatically removed from the beginning and end of a string when added to the
+	// collection.
+	void put_Trim(bool newVal);
+
+	// If true, then duplicates are not allowed. When an attempt is made to insert a
+	// string that already exists, the duplicate insertion is silently suppressed and
+	// no error is returned. The default value is false.
+	bool get_Unique(void);
+	// If true, then duplicates are not allowed. When an attempt is made to insert a
+	// string that already exists, the duplicate insertion is silently suppressed and
+	// no error is returned. The default value is false.
+	void put_Unique(bool newVal);
+
+
+
+	// ----------------------
+	// Methods
+	// ----------------------
+	// Appends a string to the end of the internal ordered collection.
 	bool Append(const char *str);
-	// APPEND_END
-
-	// SAVETOFILE2_BEGIN
-	bool SaveToFile2(const char *path, const char *charset);
-	// SAVETOFILE2_END
-
-	// LOADFROMFILE2_BEGIN
-	bool LoadFromFile2(const char *path, const char *charset);
-	// LOADFROMFILE2_END
 
 
+	// Appends multiple strings to the end of the internal ordered collection. The encodedStr
+	// is what is returned from the Serialize method (see below).
+	bool AppendSerialized(const char *encodedStr);
 
-	// Add a string to the array.
-	//void Append(const char *str);
 
-	// Return the number of strings in the array.
-	int get_Count();
+	// Remove all strings from the internal collection.
+	void Clear(void);
 
-	// Loads a file into an array of strings -- one per line.
-	// CRLFs are not included in each string.
-	// Blank lines are ignored and not included in the array.
+
+	// Returns true if the string is present in the internal collection. The string
+	// comparisons are case sensitive.
+	bool Contains(const char *str);
+
+
+	// Finds the index of the first string equal to findStr. The search begins at startIndex. If
+	// the string is not found, -1 is returned. The first string in the array is at
+	// index 0.
+	int Find(const char *findStr, int startIndex);
+
+
+	// Finds the first string that matches the matchPattern. The search begins at startIndex. If the
+	// string is not found, -1 is returned. The first string in the array is at index
+	// 0.
+	// 
+	// The matchPattern may contain zero or more asterisk chars, each of which matches 0 or
+	// more of any character.
+	// 
+	int FindFirstMatch(const char *matchPattern, int startIndex);
+
+
+	// Returns the string at an indexed location within the internal collection. The
+	// first string is located at index 0.
+	bool GetString(int index, CkString &outStr);
+
+	// Returns the string at an indexed location within the internal collection. The
+	// first string is located at index 0.
+	const char *getString(int index);
+	// Returns the string at an indexed location within the internal collection. The
+	// first string is located at index 0.
+	const char *string(int index);
+
+
+	// Returns Nth string's length, in characters. The first string is located at index
+	// 0.
+	int GetStringLen(int index);
+
+
+	// Inserts a string into the internal collection at a specified index. Using index
+	// 0 will insert at the beginning.
+	void InsertAt(int index, const char *str);
+
+
+	// Returns the last string in the internal collection.
+	bool LastString(CkString &outStr);
+
+	// Returns the last string in the internal collection.
+	const char *lastString(void);
+
+	// Loads strings from a file (one per line) into the internal collection. It is
+	// assumed the file contains ANSI strings. To load from a file containing non-ANSI
+	// strings (such as utf-8), call LoadFromFile2 instead.
+	// 
+	// Note: This method appends the strings in path to the existing collection of
+	// strings contained in this object.
+	// 
 	bool LoadFromFile(const char *path);
 
-	// Saves the string array to a file.  Line endings are controlled
-	// by the Crlf property (get_Crlf/put_Crlf)
+
+	// Loads strings from a file (one per line) into the internal collection. The charset
+	// specifies the character encoding (such as utf-8) of the strings contained in the
+	// file.
+	// 
+	// Note: This method appends the strings in path to the existing collection of
+	// strings contained in this object.
+	// 
+	bool LoadFromFile2(const char *path, const char *charset);
+
+
+	// Loads strings from an in-memory string (one per line) into the internal
+	// collection.
+	// 
+	// Note: This method appends the strings in str to the existing collection of
+	// strings contained in this object.
+	// 
+	void LoadFromText(const char *str);
+
+
+	// Loads the string collection from a completed asynchronous task.
+	bool LoadTaskResult(CkTask &task);
+
+
+	// Returns the last string and removes it from the internal collection.
+	bool Pop(CkString &outStr);
+
+	// Returns the last string and removes it from the internal collection.
+	const char *pop(void);
+
+	// Adds a string to the beginning of the internal collection.
+	void Prepend(const char *str);
+
+
+	// Removes all strings equal to the string argument from the internal collection.
+	void Remove(const char *str);
+
+
+	// Removes the string at a particular index.
+	bool RemoveAt(int index);
+
+
+	// Replaces the string at a specified index.
+	void ReplaceAt(int index, const char *str);
+
+
+	// Saves the Nth string in the collection to a file.
+	bool SaveNthToFile(int index, const char *saveToPath);
+
+
+	// Saves the collection of strings to a file, one string per line. Strings are
+	// saved using the ANSI charset. (Call SaveToFile2 to specify a charset, such as
+	// utf-8)
 	bool SaveToFile(const char *path);
 
 
-	void InsertAt(int index, const char *str);
+	// Saves the collection of strings to a file, one string per line. Strings are
+	// saved using the specified charset.
+	bool SaveToFile2(const char *saveToPath, const char *charset);
 
-	// Find an exact match, case sensitive.
-	// Begin searching at firstIndex.
-	int Find(const char *str, int firstIndex);
 
-	void Prepend(const char *str);
+	// Writes the collection of strings to a single string, one per line (separated by
+	// CRLF line endings).
+	bool SaveToText(CkString &outStr);
 
-        // If true, always convert to CRLF before adding, and before returning.
-        // If false, convert to bare LF before adding and before returning.
-	bool get_Crlf();
-	void put_Crlf(bool newVal);
+	// Writes the collection of strings to a single string, one per line (separated by
+	// CRLF line endings).
+	const char *saveToText(void);
 
-        // If true, always trim whitespace from both ends of the string before
-        // adding.
-	bool get_Trim();
-	void put_Trim(bool newVal);
-
-        // If true, then duplicates cannot exist in the collection.
-	// Methods such as Append will do nothing if the string already
-	// exists.
-	// The default is false.
-	bool get_Unique();
-	void put_Unique(bool newVal);
-
-	// Serialize the entire string array into a single Base64-encoded string.
+	// Returns an string which is an encoded representation of all the strings in the
+	// collection. The string collection can be re-created by calling the
+	// AppendSerialized method.
 	bool Serialize(CkString &outStr);
-	// Append from a previously serialized string array.
-	bool AppendSerialized(const char *encodedStr);
 
-	void Subtract(CkStringArray &sa);
+	// Returns an string which is an encoded representation of all the strings in the
+	// collection. The string collection can be re-created by calling the
+	// AppendSerialized method.
+	const char *serialize(void);
 
-	// Remove the string that exactly matches str (case sensitive).
-	void Remove(const char *str);
-
-	// Return true if the string array contains the str (case sensitive)
-	bool Contains(const char *str);
-
-	// Remove all strings from the array.
-	void Clear();
-
-	// Sort the string array in lexicographic order.
+	// Sorts the strings in the collection in ascending or descending order. To sort in
+	// ascending order, set ascending to true, otherwise set ascending equal to false.
 	void Sort(bool ascending);
 
-	// Split a string at a boundary (1 character or more)
-	// and append the individual strings to this string array.
+
+	// Splits a string at a character or substring boundary and adds each resulting
+	// string to the internal collection.
 	void SplitAndAppend(const char *str, const char *boundary);
 
 
-        const char *strAt(int index);
-        const char *serialize(void);
-	// LOADFROMTEXT_BEGIN
-	void LoadFromText(const char *str);
-	// LOADFROMTEXT_END
-	// SAVENTHTOFILE_BEGIN
-	bool SaveNthToFile(int index, const char *path);
-	// SAVENTHTOFILE_END
-	// SAVETOTEXT_BEGIN
-	bool SaveToText(CkString &outStr);
-	const char *saveToText(void);
-	// SAVETOTEXT_END
-	// FINDFIRSTMATCH_BEGIN
-	int FindFirstMatch(const char *str, int firstIndex);
-	// FINDFIRSTMATCH_END
-	// UNION_BEGIN
-	void Union(CkStringArray &sa);
-	// UNION_END
-	// GETSTRINGLEN_BEGIN
-	int GetStringLen(int index);
-	// GETSTRINGLEN_END
+	// Returns the string at a specific index.
+	bool StrAt(int index, CkString &outStr);
 
-	// STRINGARRAY_INSERT_POINT
+	// Returns the string at a specific index.
+	const char *strAt(int index);
+
+	// Subtracts the strings contained within stringArrayObj from the caller's internal
+	// collection.
+	void Subtract(CkStringArray &stringArrayObj);
+
+
+	// Performs the union set-operator. The result is that the caller will have a
+	// string collection that is the union of itself and stringArrayObj.
+	void Union(CkStringArray &stringArrayObj);
+
+
+
+
+
 
 	// END PUBLIC INTERFACE
 
 
 };
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (pop)
 #endif
-
+	
 #endif
-

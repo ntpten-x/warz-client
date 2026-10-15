@@ -23,3 +23,19 @@ BuildLog.htm
 *.idb
 *.pdb
 *.rsp
+# Local build / IDE / backups
+.vs/
+**/Final/
+**/Release/
+**/Release_Server/
+*.bak
+*.bak_*
+*.vcxproj.user
+UpgradeLog.htm
+EclipseStudio/Backup/
+External/ChilKat/include.bak_pre_v11/
+External/ChilKat/Libs/
+Eternity/lib/
+External/AutodeskNav/lib/
+*.lib
+!**/third_party_keep/*.lib

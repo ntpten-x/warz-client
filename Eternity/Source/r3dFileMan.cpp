@@ -122,9 +122,9 @@ r3dFile* r3dFile_IntOpen(const char* fname, const char* mode)
   r3dCSHolderWithDeviceQueue csHolder(g_FileSysCritSection);
   bool allowDirectAccess = true;
 
-#if defined( FINAL_BUILD ) && 1
-  // disable all data/ files in final build
-  // if(strnicmp(fname, "data/", 5) == 0)
+#if defined( FINAL_BUILD ) && 0
+  // Was: block loose Data/Levels in Final (must use wz_*.bin).
+  // Disabled so local offline study can use unpacked Data beside the exe.
     if(strnicmp(fname, "data", 4) == 0 || strnicmp(fname, "levels", 6) == 0)
     allowDirectAccess = false;
 #endif

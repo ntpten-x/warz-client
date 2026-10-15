@@ -5,30 +5,43 @@
 #ifndef _CKSFTPPROGRESS_H
 #define _CKSFTPPROGRESS_H
 
-#include "CkObject.h"
+#include "CkBaseProgress.h"
 
-#ifndef __sun__
+// When creating an application class that inherits the CkSFtpProgress base class, use the CK_SFTPPROGRESS_API 
+// definition to declare the overrides in the class header.  This has the effect that if for
+// some unforeseen and unlikely reason the Chilkat event callback API changes, or if new
+// callback methods are added in a future version, then you'll discover them at compile time
+// after updating to the new Chilkat version.  
+// For example:
+/*
+    class MyProgress : public CkSFtpProgress
+    {
+	public:
+	    CK_SFTPPROGRESS_API
+
+	...
+    };
+*/
+
+#define CK_SFTPPROGRESS_API \
+	void UploadRate(__int64 byteCount, unsigned long bytesPerSec);\
+	void DownloadRate(__int64 byteCount, unsigned long bytesPerSec);
+
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (push, 8)
 #endif
  
-
-class CkSFtpProgress : public CkObject 
+class CK_VISIBLE_PUBLIC CkSFtpProgress : public CkBaseProgress 
 {
     public:
 	CkSFtpProgress() { }
 	virtual ~CkSFtpProgress() { }
 
-	// Called periodically to check to see if the method call should be aborted.
-	virtual void AbortCheck(bool *abort) { }
-	virtual void PercentDone(int pctDone, bool *abort) { }
-
-	virtual void UploadRate(unsigned long byteCount, unsigned long bytesPerSec) { }
-	virtual void DownloadRate(unsigned long byteCount, unsigned long bytesPerSec) { }
-
-	virtual void ProgressInfo(const char *name, const char *value) { }
+	virtual void UploadRate(__int64 /*byteCount*/, unsigned long /*bytesPerSec*/) { }
+	virtual void DownloadRate(__int64 /*byteCount*/, unsigned long /*bytesPerSec*/) { }
 
 };
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (pop)
 #endif
 

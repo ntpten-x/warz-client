@@ -108,8 +108,8 @@ class r3dSTLCustomAllocator<void, AT>
 {	// allocator for type void
 public:
 	typedef void _Ty;
-	typedef _Ty _FARQ *pointer;
-	typedef const _Ty _FARQ *const_pointer;
+	typedef _Ty  *pointer;
+	typedef const _Ty  *const_pointer;
 	typedef _Ty value_type;
 
 	template<class _Other>
@@ -118,16 +118,16 @@ public:
 		typedef r3dSTLCustomAllocator<_Other, AT> other;
 	};
 
-	r3dSTLCustomAllocator() _THROW0()
+	r3dSTLCustomAllocator() noexcept
 	{	// construct default allocator (do nothing)
 	}
 
-	r3dSTLCustomAllocator(const r3dSTLCustomAllocator<_Ty, AT>&) _THROW0()
+	r3dSTLCustomAllocator(const r3dSTLCustomAllocator<_Ty, AT>&) noexcept
 	{	// construct by copying (do nothing)
 	}
 
 	template<class _Other>
-	r3dSTLCustomAllocator(const r3dSTLCustomAllocator<_Other, AT>&) _THROW0()
+	r3dSTLCustomAllocator(const r3dSTLCustomAllocator<_Other, AT>&) noexcept
 	{	// construct from related allocator (do nothing)
 	}
 

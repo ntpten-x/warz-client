@@ -1,28 +1,41 @@
-#ifndef _C_CkMailboxes_W_H
-#define _C_CkMailboxes_W_H
+// This is a generated source file for Chilkat version 11.6.0
+#ifndef _C_CkMailboxesWH
+#define _C_CkMailboxesWH
+#include "chilkatDefs.h"
+
+#include "ck_inttypes.h"
 #include "Chilkat_C.h"
 
-HCkMailboxesW CkMailboxesW_Create(void);
-HCkMailboxesW CkMailboxesW_Create2(bool bForMono);
-void CkMailboxesW_Dispose(HCkMailboxesW handle);
-long CkMailboxesW_getCount(HCkMailboxesW cHandle);
-void CkMailboxesW_getDebugLogFilePath(HCkMailboxesW cHandle, HCkStringW retval);
-void CkMailboxesW_putDebugLogFilePath(HCkMailboxesW cHandle, const wchar_t *newVal);
-void CkMailboxesW_getLastErrorHtml(HCkMailboxesW cHandle, HCkStringW retval);
-void CkMailboxesW_getLastErrorText(HCkMailboxesW cHandle, HCkStringW retval);
-void CkMailboxesW_getLastErrorXml(HCkMailboxesW cHandle, HCkStringW retval);
-BOOL CkMailboxesW_getVerboseLogging(HCkMailboxesW cHandle);
-void CkMailboxesW_putVerboseLogging(HCkMailboxesW cHandle, BOOL newVal);
-void CkMailboxesW_getVersion(HCkMailboxesW cHandle, HCkStringW retval);
-BOOL CkMailboxesW_GetName(HCkMailboxesW cHandle, long index, HCkStringW outStrName);
-BOOL CkMailboxesW_HasInferiors(HCkMailboxesW cHandle, long index);
-BOOL CkMailboxesW_IsMarked(HCkMailboxesW cHandle, long index);
-BOOL CkMailboxesW_IsSelectable(HCkMailboxesW cHandle, long index);
-BOOL CkMailboxesW_SaveLastError(HCkMailboxesW cHandle, const wchar_t *path);
-const wchar_t *CkMailboxesW__debugLogFilePath(HCkMailboxesW cHandle);
-const wchar_t *CkMailboxesW__getName(HCkMailboxesW cHandle, long index);
-const wchar_t *CkMailboxesW__lastErrorHtml(HCkMailboxesW cHandle);
-const wchar_t *CkMailboxesW__lastErrorText(HCkMailboxesW cHandle);
-const wchar_t *CkMailboxesW__lastErrorXml(HCkMailboxesW cHandle);
-const wchar_t *CkMailboxesW__version(HCkMailboxesW cHandle);
+
+CK_C_VISIBLE_PUBLIC HCkMailboxesW CkMailboxesW_Create(void);
+CK_C_VISIBLE_PUBLIC void CkMailboxesW_Dispose(HCkMailboxesW handle);
+CK_C_VISIBLE_PUBLIC int CkMailboxesW_getCount(HCkMailboxesW cHandle);
+CK_C_VISIBLE_PUBLIC void CkMailboxesW_getDebugLogFilePath(HCkMailboxesW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC void  CkMailboxesW_putDebugLogFilePath(HCkMailboxesW cHandle, const wchar_t *newVal);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkMailboxesW_debugLogFilePath(HCkMailboxesW cHandle);
+CK_C_VISIBLE_PUBLIC void CkMailboxesW_getLastErrorHtml(HCkMailboxesW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkMailboxesW_lastErrorHtml(HCkMailboxesW cHandle);
+CK_C_VISIBLE_PUBLIC void CkMailboxesW_getLastErrorText(HCkMailboxesW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkMailboxesW_lastErrorText(HCkMailboxesW cHandle);
+CK_C_VISIBLE_PUBLIC void CkMailboxesW_getLastErrorXml(HCkMailboxesW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkMailboxesW_lastErrorXml(HCkMailboxesW cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkMailboxesW_getLastMethodSuccess(HCkMailboxesW cHandle);
+CK_C_VISIBLE_PUBLIC void  CkMailboxesW_putLastMethodSuccess(HCkMailboxesW cHandle, BOOL newVal);
+CK_C_VISIBLE_PUBLIC BOOL CkMailboxesW_getVerboseLogging(HCkMailboxesW cHandle);
+CK_C_VISIBLE_PUBLIC void  CkMailboxesW_putVerboseLogging(HCkMailboxesW cHandle, BOOL newVal);
+CK_C_VISIBLE_PUBLIC void CkMailboxesW_getVersion(HCkMailboxesW cHandle, HCkString retval);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkMailboxesW_version(HCkMailboxesW cHandle);
+CK_C_VISIBLE_PUBLIC BOOL CkMailboxesW_GetFlags(HCkMailboxesW cHandle, int index, HCkString outStr);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkMailboxesW_getFlags(HCkMailboxesW cHandle, int index);
+CK_C_VISIBLE_PUBLIC int CkMailboxesW_GetMailboxIndex(HCkMailboxesW cHandle, const wchar_t *mbxName);
+CK_C_VISIBLE_PUBLIC BOOL CkMailboxesW_GetName(HCkMailboxesW cHandle, int index, HCkString outStrName);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkMailboxesW_getName(HCkMailboxesW cHandle, int index);
+CK_C_VISIBLE_PUBLIC BOOL CkMailboxesW_GetNthFlag(HCkMailboxesW cHandle, int index, int flagIndex, HCkString outStr);
+CK_C_VISIBLE_PUBLIC const wchar_t *CkMailboxesW_getNthFlag(HCkMailboxesW cHandle, int index, int flagIndex);
+CK_C_VISIBLE_PUBLIC int CkMailboxesW_GetNumFlags(HCkMailboxesW cHandle, int index);
+CK_C_VISIBLE_PUBLIC BOOL CkMailboxesW_HasFlag(HCkMailboxesW cHandle, int index, const wchar_t *flagName);
+CK_C_VISIBLE_PUBLIC BOOL CkMailboxesW_HasInferiors(HCkMailboxesW cHandle, int index);
+CK_C_VISIBLE_PUBLIC BOOL CkMailboxesW_IsMarked(HCkMailboxesW cHandle, int index);
+CK_C_VISIBLE_PUBLIC BOOL CkMailboxesW_IsSelectable(HCkMailboxesW cHandle, int index);
+CK_C_VISIBLE_PUBLIC BOOL CkMailboxesW_LoadTaskResult(HCkMailboxesW cHandle, HCkTaskW task);
 #endif

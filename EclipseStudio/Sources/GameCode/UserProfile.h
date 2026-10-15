@@ -1,7 +1,8 @@
 #pragma once
 
 #ifdef WO_SERVER
-#include "..\..\..\..\server\src\WO_GameServer\Sources\ObjectsCode\Missions\MissionProgress.h"
+// Resolved via WO_GameServer AdditionalIncludeDirectories (Sources/)
+#include "ObjectsCode/Missions/MissionProgress.h"
 #endif
 
 /// STATS TRACKING ///

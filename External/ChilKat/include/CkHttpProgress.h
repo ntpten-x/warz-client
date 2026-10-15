@@ -5,9 +5,10 @@
 #ifndef _CKHTTPPROGRESS_H
 #define _CKHTTPPROGRESS_H
 
-#include "CkObject.h"
 
-#ifndef __sun__
+#include "CkBaseProgress.h"
+
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (push, 8)
 #endif
  
@@ -60,20 +61,44 @@
 
   */
 
+// When creating an application class that inherits the CkHttpProgress base class, use the CK_HTTPPROGRESS_API 
+// definition to declare the overrides in the class header.  This has the effect that if for
+// some unforeseen and unlikely reason the Chilkat event callback API changes, or if new
+// callback methods are added in a future version, then you'll discover them at compile time
+// after updating to the new Chilkat version.  
+// For example:
+/*
+    class MyProgress : public CkHttpProgress
+    {
+	public:
+	    CK_HTTPPROGRESS_API
 
-class CkHttpProgress : public CkObject 
+	...
+    };
+*/
+#define CK_HTTPPROGRESS_API \
+	void HttpRedirect(const char *originalUrl, const char *redirectUrl, bool *abort);\
+	void HttpChunked(void);\
+	void HttpBeginReceive(void);\
+	void HttpEndReceive(bool success);\
+	void HttpBeginSend(void);\
+	void HttpEndSend(bool success);\
+	void ReceiveRate(__int64 byteCount, unsigned long bytesPerSec);\
+	void SendRate(__int64 byteCount, unsigned long bytesPerSec);
+
+
+class CK_VISIBLE_PUBLIC CkHttpProgress : public CkBaseProgress
 {
     public:
 	CkHttpProgress() { }
 	virtual ~CkHttpProgress() { }
 
-	// Called periodically to check to see if the method call should be aborted.
-	virtual void AbortCheck(bool *abort) { }
-	virtual void PercentDone(int pctDone, bool *abort) { }
-
-	virtual void ProgressInfo(const char *name, const char *value) { }
-
-	virtual void HttpRedirect(const char *originalUrl, const char *redirectUrl, bool *abort) { }
+	virtual void HttpRedirect(const char *originalUrl, const char *redirectUrl, bool *abort) 
+	    { 
+	    bool b = HttpRedirect(originalUrl,redirectUrl);
+	    if (abort) *abort = b;
+	    }
+	virtual bool HttpRedirect(const char * /*originalUrl*/, const char * /*redirectUrl*/) { return false; }
 
 	// Called just before a chunked response is about to be received.
 	// With chunked responses, it is not possible to get PercentDone callbacks because
@@ -81,14 +106,15 @@ class CkHttpProgress : public CkObject
 	virtual void HttpChunked(void) { }
 
 	virtual void HttpBeginReceive(void) { }
-	virtual void HttpEndReceive(bool success) { }
+	virtual void HttpEndReceive(bool /*success*/) { }
 	virtual void HttpBeginSend(void) { }
-	virtual void HttpEndSend(bool success) { }
+	virtual void HttpEndSend(bool /*success*/) { }
 
-	virtual void ReceiveRate(unsigned long byteCount, unsigned long bytesPerSec) { }
+	virtual void ReceiveRate(__int64 /*byteCount*/, unsigned long /*bytesPerSec*/) { }
+	virtual void SendRate(__int64 /*byteCount*/, unsigned long /*bytesPerSec*/) { }
 
 };
-#ifndef __sun__
+#if !defined(__sun__) && !defined(__sun)
 #pragma pack (pop)
 #endif
 

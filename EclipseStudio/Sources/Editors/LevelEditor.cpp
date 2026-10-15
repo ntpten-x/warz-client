@@ -1396,7 +1396,7 @@ extern	gobjid_t	UI_TargetObjID;
 extern	r3dMaterial	*UI_TargetMaterial;
 extern char	LevelEditName[64];
 
-#include "..\..\bin\Data\Shaders\DX9_P1\system\LibSM\shadow_config.h" // shader config file
+// TEMP BUILD TEST: #include "..\..\bin\Data\Shaders\DX9_P1\system\LibSM\shadow_config.h" // shader config file
 
 #define LEVELEDITOR_SETTINGS_FILE	"%s/EditorSettings.xml"
 
@@ -18476,7 +18476,7 @@ void ProcessZombieMod()
 	v1 ? g_ZombieModDebugVisFlags |= 1 : g_ZombieModDebugVisFlags &= ~1;
 	if (g_ZombieModDebugVisFlags & 1)
 	{
-		SliderY += imgui_Static(SliderX, SliderY, "Blue – visibility, green – sound, yellow – smell");
+		SliderY += imgui_Static(SliderX, SliderY, "Blue ï¿½ visibility, green ï¿½ sound, yellow ï¿½ smell");
 	}
 }
 

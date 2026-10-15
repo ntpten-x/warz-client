@@ -17,9 +17,9 @@
 #include "HUDSafelock.h"
 #include "FrontEndShared.h"
 
-#ifndef FINAL_BUILD
+#if ENABLE_AUTODESK_NAVIGATION
 #include "../../../GameEngine/ai/AutodeskNav/AutodeskNavMesh.h"
-#endif // FINAL_BUILD
+#endif
 
 
 // PunkBuster SDK
@@ -29,9 +29,9 @@
 
 extern HUDPause*	hudPause;
 extern HUDSafelock* hudSafelock;
-#ifndef FINAL_BUILD
+#if ENABLE_AUTODESK_NAVIGATION
 extern AutodeskNavMesh gAutodeskNavMesh;
-#endif // FINAL_BUILD
+#endif
 
 HUDDisplay :: HUDDisplay()
 	: Inited( false )

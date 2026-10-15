@@ -530,7 +530,17 @@ static void InitSounds()
 	snd_InitSoundSystem();
 
 #if 1
-	snd_LoadSoundEffects("Data\\Sounds", "Sounds.fev");
+	// Skip gracefully when Sounds.fev is missing (local offline without full Data pack)
+	FILE* fev = fopen("Data\\Sounds\\Sounds.fev", "rb");
+	if(fev)
+	{
+		fclose(fev);
+		snd_LoadSoundEffects("Data\\Sounds", "Sounds.fev");
+	}
+	else
+	{
+		r3dOutToLog("InitSounds: Data\\Sounds\\Sounds.fev not found — continuing without FMOD project\n");
+	}
 #endif 
 }
 
@@ -1501,15 +1511,14 @@ void game::MainLoop()
 #endif
 
 	case Menu_AppSelect::bStartGamePublic:
-		// override server settings if special key isn't set
+		// Local private server (override with -ffgrtvzdf to keep cmdline/vars as-is)
 		if(strstr(__r3dCmdLine, "-ffgrtvzdf") == NULL)
 		{
-			// hardcoded IP for now
-			g_serverip->SetString("svwarz.kongsi.asia");
+			g_serverip->SetString("127.0.0.1");
 		}
 
-		// override API settings
-		g_api_ip->SetString("apiwarz.kongsi.asia");
+		// Local ASP.NET API (IIS Express binds hostname "localhost")
+		g_api_ip->SetString("localhost");
 	case	Menu_AppSelect::bStartGameSVN:
 		g_bEditMode = false;
 		ExecuteNetworkGame();
@@ -1618,17 +1627,17 @@ extern int		gDomainPort;
 extern bool		gDomainUseSSL;
 
 #include "CkByteData.h"
+#include "Backend/ChilkatCompat.h"
 void UpdateDB(const char* api_addr, const char* out_xml)
 {
 	CkHttp http;
-	int success = http.UnlockComponent("ARKTOSHttp_decCLPWFQXmU");
-	if (success != 1) 
+	if (!Chilkat_UnlockHttp(http))
 		r3dError("Internal error!!!");
 
 	// get items DB
 	{
 		CkHttpRequest req;
-		req.UsePost();
+		Chilkat_UsePost(req);
 		req.put_Path("/WarZ/api/php/api_getItemsDB.php");
 		req.AddParam("serverkey", "F1F5F7BA-0E83-47c1-B670-425B62D8F46E");
 
@@ -1639,7 +1648,7 @@ void UpdateDB(const char* api_addr, const char* out_xml)
 			
 		// we can't use getBosyStr() because it'll fuckup characters inside UTF-8 xml
 		CkByteData bodyData;
-		resp->get_Body(bodyData);
+		Chilkat_GetBody(resp, bodyData);
 		
 		pugi::xml_document xmlFile;
 		pugi::xml_parse_result parseResult = xmlFile.load_buffer_inplace(

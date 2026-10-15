@@ -1,9 +1,9 @@
 #include "r3dPCH.h"
 #include "r3d.h"
 
-#define ENABLE_TEAMSPEAK 1
+#define ENABLE_TEAMSPEAK 0
 
-#ifdef ENABLE_TEAMSPEAK
+#if ENABLE_TEAMSPEAK
 // team speak 3 
 #include <public_definitions.h>
 #include <public_errors.h>
@@ -774,7 +774,7 @@ void CTeamSpeakClient::Tick()
 		r3dCSHolder csC(m_csClients);
 		m_nextUpdate = r3dGetTime() + 0.1f;
 	
-		for(stdext::hash_map<int, int>::iterator it = m_ClientToPlayerIdx.begin(); it != m_ClientToPlayerIdx.end(); ++it)
+		for(std::unordered_map<int, int>::iterator it = m_ClientToPlayerIdx.begin(); it != m_ClientToPlayerIdx.end(); ++it)
 		{
 			// check if we have actual player for connected client
 			int playerIdx = it->second;
@@ -824,7 +824,7 @@ void CTeamSpeakClient::AddEvent(int clientID, int code)
 	r3dCSHolder cs1(m_csEvents);
 	r3dCSHolder csC(m_csClients);
 	
-	stdext::hash_map<int, int>::iterator it = m_ClientToPlayerIdx.find(clientID);
+	std::unordered_map<int, int>::iterator it = m_ClientToPlayerIdx.find(clientID);
 	int playerIdx = (it != m_ClientToPlayerIdx.end()) ? it->second : -1;
 		
 	evt_s evt;
@@ -902,7 +902,7 @@ int CTeamSpeakClient::OnClientAppear(int clientID)
 {
 	r3dCSHolder csC(m_csClients);
 
-	stdext::hash_map<int, int>::iterator it = m_ClientToPlayerIdx.find(clientID);
+	std::unordered_map<int, int>::iterator it = m_ClientToPlayerIdx.find(clientID);
 	if(it != m_ClientToPlayerIdx.end())
 		return it->second;
 
@@ -958,7 +958,7 @@ void CTeamSpeakClient::OnClientDissapear(bool bMainThread, int clientID)
 
 	r3dCSHolder csC(m_csClients);
 
-	stdext::hash_map<int, int>::iterator it = m_ClientToPlayerIdx.find(clientID);
+	std::unordered_map<int, int>::iterator it = m_ClientToPlayerIdx.find(clientID);
 	if(it != m_ClientToPlayerIdx.end())
 	{
 		// remove voice client id from list of players
@@ -1046,9 +1046,9 @@ void CTeamSpeakClient::UnmuteClient(int clientID)
 }
 
 
-#endif // #ifdef ENABLE_TEAMSPEAK
+#endif // ENABLE_TEAMSPEAK
 
-#ifndef ENABLE_TEAMSPEAK
+#if !ENABLE_TEAMSPEAK
 #include "TeamSpeakClient.h"
 CTeamSpeakClient	gTeamSpeakClient;
 CTeamSpeakClient::CTeamSpeakClient() {} 
@@ -1059,4 +1059,7 @@ int CTeamSpeakClient::OpenDevices(int playbackIdx, int captureIdx) { return 1; }
 void CTeamSpeakClient::StartConnect(const char* host, int port, DWORD voicePwd, DWORD voiceId) {}
 void CTeamSpeakClient::Disconnect() {}
 void CTeamSpeakClient::Tick() {}
+void CTeamSpeakClient::SetVolume(float) {}
+void CTeamSpeakClient::MuteClient(int) {}
+void CTeamSpeakClient::UnmuteClient(int) {}
 #endif
